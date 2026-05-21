@@ -1,0 +1,59 @@
+{
+  "simulators": {
+    "RFID EM4100": {
+      "status": "PASS",
+      "details": "UID=A1B2C3D4E5, Type=EM4100",
+      "time": "2026-05-21T14:15:36.761278"
+    },
+    "NFC NTAG213": {
+      "status": "PASS",
+      "details": "UID=04A1B2C3..., NDEF-compatible",
+      "time": "2026-05-21T14:15:37.763334"
+    },
+    "Access Control": {
+      "status": "PASS",
+      "details": "Status=GRANTED, DB loaded",
+      "time": "2026-05-21T14:15:38.766335"
+    }
+  },
+  "attacks": {
+    "Eavesdropping": {
+      "status": "PASS",
+      "details": "Captured UID=A1B2C3D4E5 (unencrypted)",
+      "time": "2026-05-21T14:15:42.773661"
+    },
+    "Replay Attack": {
+      "status": "PASS",
+      "details": "\u2717 Server vulnerable - Granted access to A1B2C3D4E5",
+      "time": "2026-05-21T14:15:42.774309"
+    },
+    "Brute Force": {
+      "status": "PASS",
+      "details": "Found 0 valid UIDs in 4096 space",
+      "time": "2026-05-21T14:15:42.792414"
+    },
+    "RFID Cloning": {
+      "status": "PASS",
+      "details": "\u2717 Owner info leaked: Nguyen Van A",
+      "time": "2026-05-21T14:15:42.792923"
+    }
+  },
+  "defense": {
+    "Anti-Replay": {
+      "status": "PASS",
+      "details": "\u2713 Token reuse blocked",
+      "time": "2026-05-21T14:15:46.796032"
+    },
+    "NDEF HMAC": {
+      "status": "SKIP",
+      "details": "Server not running",
+      "time": "2026-05-21T14:15:46.796444"
+    },
+    "NFC Write Protection": {
+      "status": "PARTIAL",
+      "details": "NDEF readable, write control in place",
+      "time": "2026-05-21T14:15:47.801170"
+    }
+  },
+  "issues": []
+}

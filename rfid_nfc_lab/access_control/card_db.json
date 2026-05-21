@@ -1,0 +1,26 @@
+{
+  "04F3B2A1C5": {
+    "name": "Alice",
+    "access_level": 3,
+    "registered_date": "2026-01-15T10:30:00",
+    "active": true
+  },
+  "04D7A9C1B2": {
+    "name": "Bob",
+    "access_level": 2,
+    "registered_date": "2026-01-16T14:20:00",
+    "active": true
+  },
+  "04E5F2D3A8": {
+    "name": "Charlie",
+    "access_level": 1,
+    "registered_date": "2026-01-17T09:15:00",
+    "active": true
+  },
+  "04C1B8E2F6": {
+    "name": "David",
+    "access_level": 2,
+    "registered_date": "2026-01-18T11:45:00",
+    "active": false
+  }
+}

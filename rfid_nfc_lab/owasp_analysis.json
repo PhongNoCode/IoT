@@ -1,0 +1,130 @@
+{
+  "title": "OWASP IoT Top 10 Security Analysis",
+  "lab": "RFID/NFC Security Lab",
+  "issues": {
+    "I1: Weak Guessing of Credentials": {
+      "cvss": 7.5,
+      "severity": "HIGH",
+      "description": "RFID UID phát trực tiếp không yêu cầu xác thực",
+      "found_in": [
+        "rfid_tag.py",
+        "eavesdropper.py"
+      ],
+      "evidence": "UID=\"A1B2C3D4E5\" phát trực tiếp qua mạng",
+      "mitigation": "Dùng mutual authentication + encryption"
+    },
+    "I2: Weak Transport Layer Protection": {
+      "cvss": 8.1,
+      "severity": "HIGH",
+      "description": "Dữ liệu truyền qua TCP plain text (không TLS/SSL)",
+      "found_in": [
+        "rfid_tag.py",
+        "nfc_tag.py",
+        "ac_server.py"
+      ],
+      "evidence": "socket.send(json.dumps(data)) - không mã hóa",
+      "mitigation": "Thêm TLS/SSL, use secure_reader.py"
+    },
+    "I3: Insecure Web Interface": {
+      "cvss": 6.5,
+      "severity": "MEDIUM",
+      "description": "Dashboard không có authentication, chạy port mở",
+      "found_in": [
+        "dashboard/dashboard.py"
+      ],
+      "evidence": "app.run(host=\"0.0.0.0\", port=8080) - tất cả có thể truy cập",
+      "mitigation": "Thêm login + rate limiting + HTTPS"
+    },
+    "I4: Lack of Security Configurability": {
+      "cvss": 5.3,
+      "severity": "MEDIUM",
+      "description": "Không thể cấu hình bảo mật (password cứng, không có config file)",
+      "found_in": [
+        "ac_server.py",
+        "defense/secure_reader.py"
+      ],
+      "evidence": "CARD_DB = {...} - hardcoded, không có config",
+      "mitigation": "Dùng config file, env variables cho secrets"
+    },
+    "I5: Insecure Software/Firmware": {
+      "cvss": 7.1,
+      "severity": "HIGH",
+      "description": "Không có versioning, update mechanism, hoặc integrity check",
+      "found_in": [
+        "Tất cả modules"
+      ],
+      "evidence": "Mô phỏng không có OTA updates, digital signatures",
+      "mitigation": "Thêm firmware versioning + signed OTA updates"
+    },
+    "I6: Insecure Network Services": {
+      "cvss": 8.6,
+      "severity": "HIGH",
+      "description": "Replay attack không được chặn trong phiên bản bình thường",
+      "found_in": [
+        "access_control/ac_server.py",
+        "attacks/replay_attack.py"
+      ],
+      "evidence": "Lần 1: GRANTED, Lần 2: GRANTED cùng UID - replay success",
+      "mitigation": "Use defense/secure_reader.py (anti-replay tokens)"
+    },
+    "I7: Poor Physical Security": {
+      "cvss": 6.7,
+      "severity": "MEDIUM",
+      "description": "RFID tags không có tamper protection, có thể sao chép",
+      "found_in": [
+        "rfid_cloner.py"
+      ],
+      "evidence": "Đọc được toàn bộ UID + data, ghi được lại",
+      "mitigation": "Thêm write protection, encryption (secure_tag.py)"
+    },
+    "I8: Privacy Concerns": {
+      "cvss": 5.9,
+      "severity": "MEDIUM",
+      "description": "Thông tin cá nhân (owner, facility, level) bị lộ",
+      "found_in": [
+        "rfid_tag.py GET_INFO",
+        "nfc_tag.py NDEF"
+      ],
+      "evidence": "resp[\"owner\"] = \"Nguyen Van A\" - public info leak",
+      "mitigation": "Chỉ trả UID, không trả thông tin user"
+    },
+    "I9: Insecure Default Settings": {
+      "cvss": 7.2,
+      "severity": "HIGH",
+      "description": "Tags mở để ghi (write accessible), không password",
+      "found_in": [
+        "nfc_tag.py",
+        "rfid_tag.py"
+      ],
+      "evidence": "WRITE_NDEF không kiểm tra password (lỗ hổng)",
+      "mitigation": "Bật password protection by default"
+    },
+    "I10: Lack of Physical Hardening": {
+      "cvss": 4.3,
+      "severity": "MEDIUM",
+      "description": "Không có detection khi tag bị remove, power supply không protected",
+      "found_in": [
+        "rfid_tag.py",
+        "nfc_tag.py"
+      ],
+      "evidence": "Mô phỏng không kiểm tra attack thời gian",
+      "mitigation": "Thêm watchdog + intrusion detection"
+    }
+  },
+  "cvss_vectors": {
+    "I1: Weak Guessing of Credentials": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+    "I2: Weak Transport Layer Protection": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+    "I3: Insecure Web Interface": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+    "I4: Lack of Security Configurability": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L",
+    "I5: Insecure Software/Firmware": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "I6: Insecure Network Services": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+    "I7: Poor Physical Security": "CVSS:3.1/AV:P/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+    "I8: Privacy Concerns": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+    "I9: Insecure Default Settings": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:N",
+    "I10: Lack of Physical Hardening": "CVSS:3.1/AV:P/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:L"
+  },
+  "statistics": {
+    "total_issues": 10,
+    "average_cvss": 6.720000000000001
+  }
+}
