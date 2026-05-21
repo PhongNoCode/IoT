@@ -34,7 +34,7 @@ class LabTester:
         """Khởi động một process"""
         try:
             proc = subprocess.Popen(
-                ['python3', script_path],
+                ['python', script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -116,9 +116,9 @@ class LabTester:
         print(f'\n{Fore.BLUE}=== 2. TESTING ATTACKS ===')
         
         # Khởi động servers trước
-        tag_proc = subprocess.Popen(['python3', 'rfid/rfid_tag.py'], 
+        tag_proc = subprocess.Popen(['python', 'rfid/rfid_tag.py'], 
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        ac_proc = subprocess.Popen(['python3', 'access_control/ac_server.py'],
+        ac_proc = subprocess.Popen(['python', 'access_control/ac_server.py'],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
         
@@ -208,7 +208,7 @@ class LabTester:
         # 1. Anti-Replay Token (Secure AC)
         print(f'\n{Fore.YELLOW}[3.1] Anti-Replay Token (Time Window)')
         try:
-            secure_ac = subprocess.Popen(['python3', 'defense/secure_reader.py'],
+            secure_ac = subprocess.Popen(['python', 'defense/secure_reader.py'],
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
             
@@ -264,7 +264,7 @@ class LabTester:
         # 3. NFC Write Protection
         print(f'\n{Fore.YELLOW}[3.3] NFC Write Protection')
         try:
-            nfc_proc = subprocess.Popen(['python3', 'nfc/nfc_tag.py'],
+            nfc_proc = subprocess.Popen(['python', 'nfc/nfc_tag.py'],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
             

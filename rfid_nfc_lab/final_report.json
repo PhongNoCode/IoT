@@ -1,6 +1,6 @@
 {
   "title": "RFID/NFC Security Lab - Final Report",
-  "timestamp": "2026-05-21 14:16:35",
+  "timestamp": "2026-05-21 21:36:02",
   "requirements": {
     "1. SIMULATOR MODULES": {
       "requirement": "Triển khai 6 module Python mô phỏng hoàn chỉnh hệ thống RFID + NFC trên 1 máy Ubuntu",
