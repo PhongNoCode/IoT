@@ -5,6 +5,19 @@ from datetime import datetime
 from colorama import Fore, init
 init(autoreset=True)
 
+try:
+    import requests
+except Exception:
+    requests = None
+
+def send_event(evt):
+    if requests is None:
+        return
+    try:
+        requests.post('http://127.0.0.1:8080/api/log', json=evt, timeout=0.5)
+    except Exception:
+        return
+
 HOST = '127.0.0.1'
 PORT = 7001
 
@@ -54,6 +67,12 @@ class AccessControlServer:
                 print(f"{Fore.RED}[AC] {entry}")
 
             access_log.append(entry)
+            # Gửi sự kiện tới dashboard (best-effort)
+            try:
+                status = resp.get('status', '')
+                send_event({'t': now, 'proto': 'RFID-AC', 'msg': f"{status} uid={uid}", 'cls': status})
+            except Exception:
+                pass
             conn.send(json.dumps(resp).encode())
         except Exception as e:
             print(f"{Fore.RED}[AC] Error: {e}")
