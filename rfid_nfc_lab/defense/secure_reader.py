@@ -58,9 +58,10 @@ def handle(conn, addr):
     finally:
         conn.close()
 
-server = socket.socket(); server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
-server.bind((HOST,PORT)); server.listen(10)
-print(f'{Fore.GREEN}[SECURE AC] Running @ {HOST}:{PORT} — Anti-replay ENABLED')
-while True:
-    c,a = server.accept()
-    threading.Thread(target=handle,args=(c,a),daemon=True).start()
+if __name__ == '__main__':
+    server = socket.socket(); server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+    server.bind((HOST,PORT)); server.listen(10)
+    print(f'{Fore.GREEN}[SECURE AC] Running @ {HOST}:{PORT} — Anti-replay ENABLED')
+    while True:
+        c,a = server.accept()
+        threading.Thread(target=handle,args=(c,a),daemon=True).start()

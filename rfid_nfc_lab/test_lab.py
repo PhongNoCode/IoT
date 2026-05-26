@@ -253,21 +253,35 @@ class LabTester:
         
         # 2. NDEF HMAC Signing
         print(f'\n{Fore.YELLOW}[3.2] NDEF HMAC Signing')
+        secure_tag_proc = None
         try:
+            # Tự khởi động secure_tag server nếu chưa chạy
+            try:
+                probe = socket.socket(); probe.settimeout(0.5)
+                probe.connect(('127.0.0.1', 6012)); probe.close()
+            except Exception:
+                secure_tag_proc = subprocess.Popen(
+                    ['python', os.path.join(BASE_DIR, 'defense/secure_tag.py')],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                time.sleep(1.5)
+
             s = socket.socket()
-            s.settimeout(1)
+            s.settimeout(2)
             s.connect(('127.0.0.1', 6012))
             s.send(json.dumps({'cmd':'READ_NDEF_SECURE'}).encode())
             resp = json.loads(s.recv(512).decode())
             s.close()
             if resp.get('signature'):
-                self.log_test('defense', 'NDEF HMAC', 'PASS', 
+                self.log_test('defense', 'NDEF HMAC', 'PASS',
                              f"✓ Signature: {resp['signature'][:16]}...")
             else:
                 self.log_test('defense', 'NDEF HMAC', 'FAIL', 'No signature')
         except Exception as e:
-            # Nếu server secure_tag không chạy, tạo ra
-            self.log_test('defense', 'NDEF HMAC', 'SKIP', 'Server not running')
+            self.log_test('defense', 'NDEF HMAC', 'FAIL', str(e))
+        finally:
+            if secure_tag_proc:
+                secure_tag_proc.terminate()
         
         # 3. NFC Write Protection
         print(f'\n{Fore.YELLOW}[3.3] NFC Write Protection')
