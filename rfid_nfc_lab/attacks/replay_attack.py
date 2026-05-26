@@ -18,10 +18,9 @@ init(autoreset=True)
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# Chọn port theo argument
-SECURE_MODE = '--secure' in sys.argv
+# Target Port config
 AC_HOST = '127.0.0.1'
-AC_PORT = 7002 if SECURE_MODE else 7001
+AC_PORT = 7001
 
 STOLEN_UID = 'A1B2C3D4E5'   # UID captured from eavesdropper
 
@@ -72,9 +71,8 @@ def send_auth(uid: str, timestamp: float) -> dict:
 
 
 if __name__ == "__main__":
-    mode_label = f"SECURE AC (port {AC_PORT}) - Defense ON" if SECURE_MODE else f"AC Server (port {AC_PORT}) - No Defense"
     print(f"{Fore.RED}=== RFID Replay Attack ===")
-    print(f"{Fore.CYAN}Target: {mode_label}\n")
+    print(f"{Fore.CYAN}Target: AC Server (port {AC_PORT})\n")
 
     # Step 1: Simulate frame capture from eavesdropper
     replay = ReplayAttack()

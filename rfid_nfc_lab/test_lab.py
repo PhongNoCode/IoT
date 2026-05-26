@@ -3,9 +3,12 @@
 RFID/NFC Security Lab — Comprehensive Test Suite
 Kiểm tra tất cả 6 module simulators + 5 loại tấn công + 3 biện pháp phòng chống
 """
-import os, subprocess, sys, time, threading, json, socket
+import os, subprocess, sys, time, threading, json, socket, io
 from datetime import datetime
 from colorama import Fore, Style, init
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 init(autoreset=True)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +39,7 @@ class LabTester:
         try:
             script = os.path.join(BASE_DIR, script_path)
             proc = subprocess.Popen(
-                ['python', script],
+                [sys.executable, script],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -124,9 +127,9 @@ class LabTester:
         print(f'\n{Fore.BLUE}=== 2. TESTING ATTACKS ===')
         
         # Khởi động servers trước
-        tag_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'rfid/rfid_tag.py')], 
+        tag_proc = subprocess.Popen([sys.executable, os.path.join(BASE_DIR, 'rfid/rfid_tag.py')], 
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        ac_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'access_control/ac_server.py')],
+        ac_proc = subprocess.Popen([sys.executable, os.path.join(BASE_DIR, 'access_control/ac_server.py')],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
         
@@ -216,7 +219,7 @@ class LabTester:
         # 1. Anti-Replay Token (Secure AC)
         print(f'\n{Fore.YELLOW}[3.1] Anti-Replay Token (Time Window)')
         try:
-            secure_ac = subprocess.Popen(['python', os.path.join(BASE_DIR, 'defense/secure_reader.py')],
+            secure_ac = subprocess.Popen([sys.executable, os.path.join(BASE_DIR, 'defense/secure_reader.py')],
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
             
@@ -227,7 +230,7 @@ class LabTester:
             # Lần 1 - OK
             s = socket.socket()
             s.settimeout(1)
-            s.connect(('127.0.0.1', 7002))
+            s.connect(('127.0.0.1', 7001))
             s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':ts}).encode())
             resp1 = json.loads(s.recv(512).decode())
             s.close()
@@ -235,7 +238,7 @@ class LabTester:
             # Lần 2 - cùng timestamp, nên bị chặn (replay)
             s = socket.socket()
             s.settimeout(1)
-            s.connect(('127.0.0.1', 7002))
+            s.connect(('127.0.0.1', 7001))
             s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':ts}).encode())
             resp2 = json.loads(s.recv(512).decode())
             s.close()
@@ -251,61 +254,57 @@ class LabTester:
         except Exception as e:
             self.log_test('defense', 'Anti-Replay', 'FAIL', str(e))
         
-        # 2. NDEF HMAC Signing
+        # 2. NDEF HMAC Signing & 3. NFC Write Protection
         print(f'\n{Fore.YELLOW}[3.2] NDEF HMAC Signing')
         secure_tag_proc = None
         try:
-            # Tự khởi động secure_tag server nếu chưa chạy
-            try:
-                probe = socket.socket(); probe.settimeout(0.5)
-                probe.connect(('127.0.0.1', 6012)); probe.close()
-            except Exception:
-                secure_tag_proc = subprocess.Popen(
-                    ['python', os.path.join(BASE_DIR, 'defense/secure_tag.py')],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
-                time.sleep(1.5)
+            secure_tag_proc = subprocess.Popen(
+                [sys.executable, os.path.join(BASE_DIR, 'defense/secure_tag.py')],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            time.sleep(1.5)
 
+            # Test 3.2 NDEF HMAC
             s = socket.socket()
             s.settimeout(2)
-            s.connect(('127.0.0.1', 6012))
-            s.send(json.dumps({'cmd':'READ_NDEF_SECURE'}).encode())
-            resp = json.loads(s.recv(512).decode())
+            s.connect(('127.0.0.1', 6011))
+            s.send(json.dumps({'cmd':'READ_NDEF'}).encode())
+            resp = json.loads(s.recv(1024).decode())
             s.close()
+            
             if resp.get('signature'):
                 self.log_test('defense', 'NDEF HMAC', 'PASS',
                              f"✓ Signature: {resp['signature'][:16]}...")
             else:
                 self.log_test('defense', 'NDEF HMAC', 'FAIL', 'No signature')
+                
+            # Test 3.3 NFC Write Protection
+            print(f'\n{Fore.YELLOW}[3.3] NFC Write Protection')
+            # Thử ghi không password
+            s = socket.socket(); s.settimeout(1)
+            s.connect(('127.0.0.1', 6011))
+            s.send(json.dumps({'cmd':'WRITE_NDEF', 'ndef_hex': '00112233'}).encode())
+            resp_write1 = json.loads(s.recv(512).decode()); s.close()
+            
+            # Thử ghi đúng password
+            s = socket.socket(); s.settimeout(1)
+            s.connect(('127.0.0.1', 6011))
+            s.send(json.dumps({'cmd':'WRITE_NDEF', 'ndef_hex': '00112233', 'pwd': '41424344'}).encode())
+            resp_write2 = json.loads(s.recv(512).decode()); s.close()
+            
+            if resp_write1.get('status') == 'DENIED' and resp_write2.get('status') == 'WRITTEN':
+                self.log_test('defense', 'NFC Write Protection', 'PASS', 
+                             '✓ Unauthorized write blocked, authorized write allowed')
+            else:
+                self.log_test('defense', 'NFC Write Protection', 'FAIL', 
+                             f'resp1={resp_write1.get("status")}, resp2={resp_write2.get("status")}')
+                             
         except Exception as e:
             self.log_test('defense', 'NDEF HMAC', 'FAIL', str(e))
+            self.log_test('defense', 'NFC Write Protection', 'FAIL', str(e))
         finally:
             if secure_tag_proc:
                 secure_tag_proc.terminate()
-        
-        # 3. NFC Write Protection
-        print(f'\n{Fore.YELLOW}[3.3] NFC Write Protection')
-        try:
-            nfc_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'nfc/nfc_tag.py')],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(1)
-            
-            s = socket.socket()
-            s.settimeout(1)
-            s.connect(('127.0.0.1', 6011))
-            s.send(json.dumps({'cmd':'READ_NDEF'}).encode())
-            resp = json.loads(s.recv(2048).decode())
-            s.close()
-            
-            if resp.get('records'):
-                self.log_test('defense', 'NFC Write Protection', 'PARTIAL', 
-                             f"NDEF readable, write control in place")
-            else:
-                self.log_test('defense', 'NFC Write Protection', 'FAIL', 'No NDEF')
-            
-            nfc_proc.terminate()
-        except Exception as e:
-            self.log_test('defense', 'NFC Write Protection', 'FAIL', str(e))
     
     def generate_report(self):
         """Tạo báo cáo tổng hợp"""

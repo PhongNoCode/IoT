@@ -9,7 +9,7 @@ init(autoreset=True)
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-HOST, PORT  = '127.0.0.1', 7002
+HOST, PORT  = '127.0.0.1', 7001
 HMAC_KEY    = b'SecretACServerKey_2024'
 TIME_WINDOW = 5.0    # seconds - request must arrive within 5s of its timestamp
 COOLDOWN    = 60.0   # seconds - keep used tokens for 60s to block replays

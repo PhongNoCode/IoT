@@ -16,7 +16,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 AC_HOST = '127.0.0.1'
-AC_PORT = 7002 if '--secure' in sys.argv else 7001
+AC_PORT = 7001
 
 # Known valid UIDs hidden in a wide space for demo purposes
 # A1B2C3D4E5 = 0xA1B2C3D4E5, DEADBEEF01 = 0xDEADBEEF01
@@ -67,7 +67,6 @@ def brute_force_uid(start_uid=0, max_uid=0x10000, sample_rate=1):
 
 
 if __name__ == '__main__':
-    mode = f"SECURE AC (port {AC_PORT}) - Defense ON" if '--secure' in sys.argv else f"AC Server (port {AC_PORT}) - No Defense"
-    print(f"{Fore.CYAN}Target: {mode}\n")
+    print(f"{Fore.CYAN}Target: AC Server (port {AC_PORT})\n")
     # Demo range: scan around the known valid UID A1B2C3D4E5
     brute_force_uid(DEMO_RANGE_START, DEMO_RANGE_END, sample_rate=DEMO_SAMPLE_RATE)

@@ -101,27 +101,26 @@ Mỗi demo gồm 2 pha: **chạy attack vào hệ thống không có defense →
 
 **Kịch bản:** Attacker bắt được UID hợp lệ từ eavesdropper, sau đó phát lại để qua cổng lần 2, lần 3 mà không cần thẻ thật.
 
-#### 🔴 CHƯA BẬT DEFENSE
+> 💡 **Cách chuyển đổi giữa 2 pha:**
+> Bạn chỉ cần dừng (Ctrl+C) server hiện tại và chạy server tương ứng trên cùng một terminal. Cả 2 server đều lắng nghe trên port **7001**, giúp kịch bản demo trực quan và thực tế hơn (không cần thay đổi lệnh của attacker).
 
-Mở **2 terminal**:
+**Mở 2 terminal:**
+
+#### 🔴 Pha 1: Tấn công server KHÔNG có defense
 
 ```bash
-# Terminal 1 — Khởi động RFID Tag + AC server thường
-python rfid/rfid_tag.py
-```
-```bash
-# Terminal 2 — Khởi động AC server (port 7001, KHÔNG có anti-replay)
+# Terminal 1 — Khởi động AC server KHÔNG có defense (port 7001)
 python access_control/ac_server.py
 ```
 ```bash
-# Terminal 3 — Chạy replay attack nhắm vào AC port 7001
+# Terminal 2 — Chạy kịch bản tấn công phát lại
 python attacks/replay_attack.py
 ```
 
-**Output (bị tấn công):**
+**Output của Terminal 2 (bị tấn công):**
 ```
 === RFID Replay Attack ===
-Target: AC Server (port 7001) - No Defense
+Target: AC Server (port 7001)
 
 [+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
 [*] Attempt 1 - fresh timestamp (1779812769.7)...
@@ -134,23 +133,23 @@ Target: AC Server (port 7001) - No Defense
 [Attempt 3 - Old TS] -> GRANTED - Nguyen Van A [!] ATTACK SUCCEEDED
 ```
 
-> 💥 Server `ac_server.py` chấp nhận cùng UID với bất kỳ timestamp nào — không có kiểm tra gì cả.
+> 💥 `ac_server.py` chấp nhận cùng UID với bất kỳ timestamp nào — hoàn toàn không bảo vệ.
 
-#### 🟢 ĐÃ BẬT DEFENSE
+#### 🟢 Pha 2: Tấn công server CÓ defense
 
 ```bash
-# Terminal 1 — Khởi động Secure AC (port 7002, có anti-replay)
+# Terminal 1 — Dừng ac_server (Ctrl+C), chạy Secure AC (port 7001)
 python defense/secure_reader.py
 ```
 ```bash
-# Terminal 2 — Chạy replay attack nhắm vào Secure AC port 7002
-python attacks/replay_attack.py --secure
+# Terminal 2 — Chạy LẠI chính xác lệnh tấn công trên (không cần đổi tham số)
+python attacks/replay_attack.py
 ```
 
-**Output (bị chặn):**
+**Output của Terminal 2 (bị chặn):**
 ```
 === RFID Replay Attack ===
-Target: SECURE AC (port 7002) - Defense ON
+Target: AC Server (port 7001)
 
 [+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
 [*] Attempt 1 - fresh timestamp (1779812791.2)...
@@ -163,9 +162,9 @@ Target: SECURE AC (port 7002) - Defense ON
 [Attempt 3 - Old TS] -> DENIED - Timestamp out of window (100.0s) [OK] BLOCKED
 ```
 
-*Console `secure_reader.py`:*
+*Console Terminal 1 (`secure_reader.py`) hiện:*
 ```
-[SECURE AC] Running @ 127.0.0.1:7002
+[SECURE AC] Running @ 127.0.0.1:7001
 [SECURE AC] Anti-replay ENABLED  (time window: 5.0s)
 [SECURE AC] Rate limiting ENABLED (max 5 req / 10s, lockout 30s)
 [SECURE AC] GRANTED: Nguyen Van A from 127.0.0.1
@@ -173,10 +172,10 @@ Target: SECURE AC (port 7002) - Defense ON
 [SECURE AC] REPLAY BLOCKED: A1B2C3D4E5 ts_diff=100.0s
 ```
 
-| | Chưa bật Defense | Đã bật Defense |
+| | Không có Defense (port 7001) | Có Defense (port 7001) |
 |---|---|---|
-| File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7002` |
-| Flag attack | `python attacks/replay_attack.py` | `python attacks/replay_attack.py --secure` |
+| File server | `access_control/ac_server.py` | `defense/secure_reader.py` |
+| Lệnh attack | `python attacks/replay_attack.py` | `python attacks/replay_attack.py` |
 | Replay cùng timestamp | ✅ GRANTED | ❌ DENIED |
 | Timestamp cũ 100s | ✅ GRANTED | ❌ DENIED (time window 5s) |
 
@@ -186,10 +185,15 @@ Target: SECURE AC (port 7002) - Defense ON
 
 **Kịch bản:** Attacker ghi đè NDEF lên thẻ NFC — thay URL thật bằng phishing URL, thêm text giả mạo.
 
-#### 🔴 CHƯA BẬT DEFENSE
+> 💡 **Cách chuyển đổi giữa 2 pha:**
+> Cả 2 NFC Tag đều chạy trên port **6011**. Dừng tag thường và khởi động secure tag trên cùng terminal trước khi chạy lại injector.
+
+**Mở 2 terminal:**
+
+#### 🔴 Pha 1: Tấn công tag thường KHÔNG có defense
 
 ```bash
-# Terminal 1 — NFC Tag thường (port 6011, ghi tự do)
+# Terminal 1 — Chạy NFC Tag thường (port 6011, ghi tự do)
 python nfc/nfc_tag.py
 ```
 ```bash
@@ -197,47 +201,48 @@ python nfc/nfc_tag.py
 python nfc/nfc_injector.py
 ```
 
-**Output (bị tấn công):**
+**Output của Terminal 2 (bị tấn công):**
 ```
 === NFC NDEF Injection Attack ===
-Target: NFC Tag (port 6011) — No Defense
+Target: NFC Tag (port 6011)
 
 [INJECT] Overwriting with: phishing_url
-[INJECT] Result: {'status': 'WRITTEN', 'msg': 'NDEF updated'}
-[VERIFY] New NDEF: [{'type': 'uri', 'value': 'https://evil.attacker.com/steal-credentials'}]
+[INJECT] Result: {'status': 'WRITTEN', 'bytes': 39}
+[VERIFY] New NDEF content: [{'type': 'URI', 'value': 'https://evil.attacker.com/steal-credentials'}]
 
 [INJECT] Overwriting with: malicious_text
-[INJECT] Result: {'status': 'WRITTEN', 'msg': 'NDEF updated'}
-[VERIFY] New NDEF: [{'type': 'text', 'data': 'Hệ thống đã cập nhật. Truy cập: bit.ly/fake'}]
+[INJECT] Result: {'status': 'WRITTEN', 'bytes': 37}
+[VERIFY] New NDEF content: [{'type': 'TEXT', 'value': 'System updated. Visit: bit.ly/malware'}]
 ```
 
-> 💥 Thẻ không yêu cầu password — bất kỳ ai cũng có thể ghi đè nội dung.
+> 💥 Thẻ thường không yêu cầu password hay chữ ký — bất kỳ ai cũng ghi đè được.
 
-#### 🟢 ĐÃ BẬT DEFENSE
+#### 🟢 Pha 2: Tấn công tag có defense (Secure NFC Tag)
 
 ```bash
-# Terminal 1 — Secure NFC Tag (port 6012, password + HMAC)
+# Terminal 1 — Dừng nfc_tag (Ctrl+C), chạy Secure NFC Tag (port 6011)
 python defense/secure_tag.py
 ```
 ```bash
-# Terminal 2 — Thử inject vào Secure NFC Tag
-python nfc/nfc_injector.py --secure
+# Terminal 2 — Chạy LẠI kịch bản injector trên
+python nfc/nfc_injector.py
 ```
 
-**Output (bị chặn):**
+**Output của Terminal 2 (bị chặn):**
 ```
 === NFC NDEF Injection Attack ===
-Target: SECURE NFC Tag (port 6012) — Defense ON
+Target: NFC Tag (port 6011)
 
 [INJECT] Overwriting with: phishing_url
 [INJECT] Result: {'status': 'DENIED', 'msg': 'Wrong PWD (1/3)'}
-[VERIFY] New NDEF: ...  ← NDEF không thay đổi
+[VERIFY] NDEF unchanged, signature still valid: ...
 
 [INJECT] Overwriting with: malicious_text
 [INJECT] Result: {'status': 'DENIED', 'msg': 'Wrong PWD (2/3)'}
+[VERIFY] NDEF unchanged, signature still valid: ...
 ```
 
-*Console server `secure_tag.py` hiện:*
+*Console Terminal 1 (`secure_tag.py`) hiện:*
 ```
 [SECURE NFC] ✗ Write rejected: Wrong PWD (1/3)
 [SECURE NFC] ✗ Write rejected: Wrong PWD (2/3)
@@ -245,39 +250,40 @@ Target: SECURE NFC Tag (port 6012) — Defense ON
 
 | | Chưa bật Defense | Đã bật Defense |
 |---|---|---|
-| File server | `nfc/nfc_tag.py` `:6011` | `defense/secure_tag.py` `:6012` |
-| Flag attack | `python nfc/nfc_injector.py` | `python nfc/nfc_injector.py --secure` |
+| File server | `nfc/nfc_tag.py` `:6011` | `defense/secure_tag.py` `:6011` |
+| Lệnh attack | `python nfc/nfc_injector.py` | `python nfc/nfc_injector.py` |
 | Ghi không cần password | ✅ WRITTEN | ❌ DENIED |
-| Sai password 3 lần | Không kiểm tra | 🔒 Tag khóa vĩnh viễn |
+| Sai password 3 lần | Không khóa | 🔒 Tag khóa vĩnh viễn |
 | NDEF có chữ ký HMAC | ❌ Không có | ✅ HMAC-SHA256 |
 
 ---
 
 ### Demo 3 — UID Brute Force
 
-**Kịch bản:** Attacker dò UID bằng cách gửi hàng nghìn giá trị ngẫu nhiên — tìm UID hợp lệ để giả mạo vào.
+**Kịch bản:** Attacker dò UID bằng cách gửi hàng nghìn giá trị ngẫu nhiên — tìm UID hợp lệ để vượt qua cổng.
 
-#### 🔴 CHƯA BẬT DEFENSE
+**Mở 2 terminal:**
+
+#### 🔴 Pha 1: Brute force server thường KHÔNG có defense
 
 ```bash
-# Terminal 1 — AC server thường (không có rate limiting)
+# Terminal 1 — Khởi động AC server thường (port 7001)
 python access_control/ac_server.py
 ```
 ```bash
-# Terminal 2 — Brute force vào port 7001
+# Terminal 2 — Chạy brute force
 python attacks/brute_force.py
 ```
 
-**Output (bị tấn công — tìm ra UID hợp lệ):**
+**Output của Terminal 2 (bị tấn công — tìm ra UID hợp lệ):**
 ```
-Target: AC Server (port 7001) - No Defense
+Target: AC Server (port 7001)
 
 === RFID UID Brute Force ===
 Range: 0xA1B2C3D4E0 -> 0xA1B2C3D4F0 (16 IDs)
 Sample rate: every 1 ID
 
 [?] Interesting response: A1B2C3D4E0 -> UID A1B2C3D4E0 not authorized
-[?] Interesting response: A1B2C3D4E1 -> UID A1B2C3D4E1 not authorized
 ...
 [+] FOUND VALID UID: A1B2C3D4E5 -> Nguyen Van A
 ...
@@ -286,51 +292,46 @@ Sample rate: every 1 ID
   [*] A1B2C3D4E5 (Nguyen Van A)
 ```
 
-> 💥 Server không có rate limiting — brute force thoải mái, quét từng UID một, tìm ra UID hợp lệ trong range.
-
-#### 🟢 ĐÃ BẬT DEFENSE — Rate Limiting + Anti-Replay
+#### 🟢 Pha 2: Brute force server CÓ defense (Rate Limiting + Anti-Replay)
 
 ```bash
-# Terminal 1 — Secure AC (rate limit: max 5 req/10s, lockout 30s)
+# Terminal 1 — Dừng ac_server (Ctrl+C), chạy Secure AC (port 7001)
 python defense/secure_reader.py
 ```
 ```bash
-# Terminal 2 — Brute force vào port 7002
-python attacks/brute_force.py --secure
+# Terminal 2 — Chạy LẠI brute force
+python attacks/brute_force.py
 ```
 
-**Output (bị chặn — không tìm ra gì):**
+**Output của Terminal 2 (bị rate limit chặn đứng):**
 ```
-Target: SECURE AC (port 7002) - Defense ON
+Target: AC Server (port 7001)
 
 === RFID UID Brute Force ===
 Range: 0xA1B2C3D4E0 -> 0xA1B2C3D4F0 (16 IDs)
 Sample rate: every 1 ID
 
 [*] Tried 5 IDs, found 0...
-[?] Interesting response: A1B2C3D4E5 -> Too many attempts - locked out for 30.0s
+[?] Interesting response: A1B2C3D4E5 -> Too many attempts - locked out for 30s
 [?] Interesting response: A1B2C3D4E6 -> IP locked out for 30s (brute force detected)
-[?] Interesting response: A1B2C3D4E7 -> IP locked out for 30s (brute force detected)
 ...
 [+] Total attempts: 16
 [+] Valid UIDs found: 0
 ```
 
-*Console `secure_reader.py`:*
+*Console Terminal 1 (`secure_reader.py`) hiện:*
 ```
-[SECURE AC] RATE LIMIT: 127.0.0.1 locked out for 30.0s
-[SECURE AC] BLOCKED 127.0.0.1: Too many attempts - locked out for 30.0s
+[SECURE AC] RATE LIMIT: 127.0.0.1 locked out for 30s
+[SECURE AC] BLOCKED 127.0.0.1: Too many attempts - locked out for 30s
 ```
-
-> ✅ Sau 5 request trong 10 giây, IP bị khóa 30 giây. UID hợp lệ `A1B2C3D4E5` bị bỏ lỡ vì request đến lúc đã bị lockout.
 
 | | Chưa bật Defense | Đã bật Defense |
 |---|---|---|
-| File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7002` |
-| Flag attack | `python attacks/brute_force.py` | `python attacks/brute_force.py --secure` |
+| File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7001` |
+| Lệnh attack | `python attacks/brute_force.py` | `python attacks/brute_force.py` |
 | Rate limiting | ❌ Không có | ✅ Max 5 req/10s, lockout 30s |
 | Anti-replay | ❌ Không có | ✅ Time window 5s + token blacklist |
-| Brute force tìm UID | ✅ Tìm ra `A1B2C3D4E5` | ❌ Bị lockout, 0 UID tìm ra |
+| Brute force tìm UID | ✅ Tìm ra `A1B2C3D4E5` | ❌ Bị lockout, không tìm ra gì |
 
 ---
 

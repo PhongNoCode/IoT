@@ -5,7 +5,7 @@ import ndef
 from colorama import Fore, init
 init(autoreset=True)
 
-HOST, PORT = '127.0.0.1', 6012
+HOST, PORT = '127.0.0.1', 6011
 WRITE_PWD  = bytes([0x41,0x42,0x43,0x44])    # 4-byte write password
 AUTHLIM    = 3                                # Khóa sau 3 lần sai
 
@@ -80,10 +80,10 @@ class SecureNFCTagServer:
             if cmd == 'GET_UID':
                 resp = {'uid': self.tag.uid.hex().upper()}
             
-            elif cmd == 'READ_NDEF_SECURE':
+            elif cmd in ('READ_NDEF', 'READ_NDEF_SECURE'):
                 resp = self.tag.get_ndef_with_signature()
             
-            elif cmd == 'WRITE_NDEF_SECURE':
+            elif cmd in ('WRITE_NDEF', 'WRITE_NDEF_SECURE'):
                 pwd = bytes.fromhex(req.get('pwd','')) if 'pwd' in req else None
                 ndef_hex = req.get('ndef_hex','')
                 try:
