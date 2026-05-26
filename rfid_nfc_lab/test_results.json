@@ -3,56 +3,56 @@
     "RFID EM4100": {
       "status": "PASS",
       "details": "UID=A1B2C3D4E5, Type=EM4100",
-      "time": "2026-05-21T21:35:44.292571"
+      "time": "2026-05-26T14:44:44.155600"
     },
     "NFC NTAG213": {
-      "status": "FAIL",
-      "details": "timed out",
-      "time": "2026-05-21T21:35:46.302559"
+      "status": "PASS",
+      "details": "UID=04A1B2C3..., NDEF-compatible",
+      "time": "2026-05-26T14:44:45.159990"
     },
     "Access Control": {
       "status": "PASS",
       "details": "Status=GRANTED, DB loaded",
-      "time": "2026-05-21T21:35:47.308313"
+      "time": "2026-05-26T14:44:46.165162"
     }
   },
   "attacks": {
     "Eavesdropping": {
       "status": "PASS",
       "details": "Captured UID=A1B2C3D4E5 (unencrypted)",
-      "time": "2026-05-21T21:35:51.313114"
+      "time": "2026-05-26T14:44:50.170086"
     },
     "Replay Attack": {
       "status": "PASS",
       "details": "\u2717 Server vulnerable - Granted access to A1B2C3D4E5",
-      "time": "2026-05-21T21:35:51.335624"
+      "time": "2026-05-26T14:44:50.172632"
     },
     "Brute Force": {
       "status": "PASS",
       "details": "Found 0 valid UIDs in 4096 space",
-      "time": "2026-05-21T21:35:51.662705"
+      "time": "2026-05-26T14:44:50.216749"
     },
     "RFID Cloning": {
       "status": "PASS",
       "details": "\u2717 Owner info leaked: Nguyen Van A",
-      "time": "2026-05-21T21:35:51.663399"
+      "time": "2026-05-26T14:44:50.217308"
     }
   },
   "defense": {
     "Anti-Replay": {
       "status": "PASS",
       "details": "\u2713 Token reuse blocked",
-      "time": "2026-05-21T21:35:55.710747"
+      "time": "2026-05-26T14:44:54.220186"
     },
     "NDEF HMAC": {
       "status": "SKIP",
       "details": "Server not running",
-      "time": "2026-05-21T21:35:56.721405"
+      "time": "2026-05-26T14:44:54.220582"
     },
     "NFC Write Protection": {
-      "status": "FAIL",
-      "details": "timed out",
-      "time": "2026-05-21T21:35:58.732193"
+      "status": "PARTIAL",
+      "details": "NDEF readable, write control in place",
+      "time": "2026-05-26T14:44:55.223050"
     }
   },
   "issues": []

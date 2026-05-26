@@ -3,11 +3,12 @@
 RFID/NFC Security Lab — Comprehensive Test Suite
 Kiểm tra tất cả 6 module simulators + 5 loại tấn công + 3 biện pháp phòng chống
 """
-import subprocess, sys, time, threading, json, socket
+import os, subprocess, sys, time, threading, json, socket
 from datetime import datetime
 from colorama import Fore, Style, init
 
 init(autoreset=True)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class LabTester:
     def __init__(self):
@@ -33,8 +34,9 @@ class LabTester:
     def start_process(self, script_path, name, timeout=3):
         """Khởi động một process"""
         try:
+            script = os.path.join(BASE_DIR, script_path)
             proc = subprocess.Popen(
-                ['python', script_path],
+                ['python', script],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -54,6 +56,8 @@ class LabTester:
         print(f'\n{Fore.YELLOW}[1.1] RFID Tag Simulator (EM4100)')
         try:
             proc = self.start_process('rfid/rfid_tag.py', 'RFID Tag Server', timeout=2)
+            if proc is None:
+                raise RuntimeError('RFID Tag Server did not start')
             time.sleep(1)
             # Kiểm tra xem server có lắng nghe không
             s = socket.socket()
@@ -75,6 +79,8 @@ class LabTester:
         print(f'\n{Fore.YELLOW}[1.2] NFC Tag Simulator (NTAG213)')
         try:
             proc = self.start_process('nfc/nfc_tag.py', 'NFC Tag Server', timeout=2)
+            if proc is None:
+                raise RuntimeError('NFC Tag Server did not start')
             time.sleep(1)
             s = socket.socket()
             s.settimeout(1)
@@ -95,6 +101,8 @@ class LabTester:
         print(f'\n{Fore.YELLOW}[1.3] Access Control Server')
         try:
             proc = self.start_process('access_control/ac_server.py', 'AC Server', timeout=2)
+            if proc is None:
+                raise RuntimeError('Access Control Server did not start')
             time.sleep(1)
             s = socket.socket()
             s.settimeout(1)
@@ -116,9 +124,9 @@ class LabTester:
         print(f'\n{Fore.BLUE}=== 2. TESTING ATTACKS ===')
         
         # Khởi động servers trước
-        tag_proc = subprocess.Popen(['python', 'rfid/rfid_tag.py'], 
+        tag_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'rfid/rfid_tag.py')], 
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        ac_proc = subprocess.Popen(['python', 'access_control/ac_server.py'],
+        ac_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'access_control/ac_server.py')],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
         
@@ -208,7 +216,7 @@ class LabTester:
         # 1. Anti-Replay Token (Secure AC)
         print(f'\n{Fore.YELLOW}[3.1] Anti-Replay Token (Time Window)')
         try:
-            secure_ac = subprocess.Popen(['python', 'defense/secure_reader.py'],
+            secure_ac = subprocess.Popen(['python', os.path.join(BASE_DIR, 'defense/secure_reader.py')],
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
             
@@ -264,7 +272,7 @@ class LabTester:
         # 3. NFC Write Protection
         print(f'\n{Fore.YELLOW}[3.3] NFC Write Protection')
         try:
-            nfc_proc = subprocess.Popen(['python', 'nfc/nfc_tag.py'],
+            nfc_proc = subprocess.Popen(['python', os.path.join(BASE_DIR, 'nfc/nfc_tag.py')],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(1)
             
@@ -331,7 +339,8 @@ def main():
     results = tester.generate_report()
     
     # Lưu kết quả
-    with open('test_results.json', 'w') as f:
+    result_file = os.path.join(BASE_DIR, 'test_results.json')
+    with open(result_file, 'w') as f:
         json.dump(results, f, indent=2)
     print(f'{Fore.GREEN}Results saved to test_results.json')
 
