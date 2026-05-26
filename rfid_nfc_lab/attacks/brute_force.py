@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""RFID UID Brute Force Attack — quét toàn bộ không gian UID"""
-import socket, json, time
+"""
+RFID UID Brute Force Attack — quét toàn bộ không gian UID
+
+Usage:
+    python brute_force.py              # Tấn công AC thường (port 7001) — VULNERABLE
+    python brute_force.py --secure     # Tấn công Secure AC (port 7002) — BLOCKED
+"""
+import socket, json, time, sys
 from colorama import Fore, init
 init(autoreset=True)
 
 AC_HOST = '127.0.0.1'
-AC_PORT = 7001
+AC_PORT = 7002 if '--secure' in sys.argv else 7001
 
 def brute_force_uid(start_uid=0, max_uid=0x10000, sample_rate=100):
     """Quét UID từ start_uid đến max_uid"""
@@ -49,5 +55,7 @@ def brute_force_uid(start_uid=0, max_uid=0x10000, sample_rate=100):
     return found
 
 if __name__ == '__main__':
+    mode = f"SECURE AC (port {AC_PORT}) — Defense ON" if '--secure' in sys.argv else f"AC Server (port {AC_PORT}) — No Defense"
+    print(f"{Fore.CYAN}Target: {mode}\n")
     # Quét một range nhỏ để demo
     brute_force_uid(0x0000, 0x1000, sample_rate=50)
