@@ -68,222 +68,222 @@
   Results saved to rfid_nfc_lab/test_results.json
   ```
 
-  JSON file (`rfid_nfc_lab/test_results.json`) will contain entries like:
-  ```json
-  {
-    "simulators": {
-      "RFID EM4100": {"status":"PASS","details":"UID=..."},
-      "NFC NTAG213": {"status":"PASS","details":"UID=..."}
-    },
-    "attacks": {...},
-    "defense": {...}
-  }
-  ```
+  # HƯỚNG DẪN TUẦN TỰ CHẠY LAB RFID/NFC (TỪ TRÊN XUỐNG DƯỚI)
 
-- `final_report.py` (báo cáo tổng hợp)
+  Mục tiêu: hướng dẫn từng bước, tuần tự, để bạn khởi tạo môi trường, chạy từng server/simulator, thực hiện các test/attack/defense và hiểu ý nghĩa từng kết quả in ra.
+
+  Ghi chú: chạy các lệnh dưới đây từ thư mục gốc repository. Mỗi bước có lệnh, kết quả mong đợi và ý nghĩa của kết quả.
+
+  ---
+
+  1) Chuẩn bị môi trường (chỉ cần làm 1 lần)
 
   Command:
   ```bash
-  python rfid_nfc_lab/final_report.py
+  python3 -m venv venv
+  source venv/bin/activate
+  python3 -m pip install -r rfid_nfc_lab/requirements.txt
   ```
 
-  Expected output (example):
+  Expected output (tóm tắt):
   ```text
-  RFID/NFC SECURITY LAB — FINAL COMPREHENSIVE REPORT
-  [PASS] 1. SIMULATOR MODULES
-  [PASS] 3. FIVE ATTACK TYPES
-  FINAL EVALUATION SUMMARY
-  Overall Score: 6/6
+  Collecting Flask==2.3.0
+  Collecting pycryptodome==3.18.0
+  Collecting requests>=2.28.0
+  Collecting colorama==0.4.6
+  Installing collected packages: ...
+  Successfully installed Flask-2.3.0 pycryptodome-3.18.0 requests-... colorama-0.4.6 ndef-0.2
   ```
-# 🔐 RFID/NFC Security Lab — Hướng dẫn chi tiết (File duy nhất)
 
-Mục tiêu: khoá học / lab mô phỏng hệ thống RFID & NFC hoàn chỉnh bằng Python, bao gồm các mô-đun giả lập, demo tấn công, biện pháp phòng chống, dashboard và bộ kiểm thử tự động. Tài liệu này là file README duy nhất trong repository — các bản README trùng lặp đã được dọn.
+  Ý nghĩa: môi trường Python đã có đủ thư viện cần thiết; nếu thiếu package, các script sẽ ném ModuleNotFoundError.
 
-Lưu ý: Chỉ sử dụng cho mục đích giáo dục và nghiên cứu — không dùng trong môi trường sản xuất.
+  ---
 
----
-
-## Mục lục
-
-- Giới thiệu
-- Yêu cầu hệ thống
-- Thiết lập (virtualenv)
-- Cài đặt phụ thuộc
-- Chạy từng thành phần (simulators, readers, dashboard)
-- Chạy bộ kiểm thử tự động
-- Giải thích kết quả và ý nghĩa
-- Vị trí lưu kết quả
-- Khắc phục sự cố phổ biến
-
----
-
-## Giới thiệu
-
-Repository chứa một lab mô phỏng đầy đủ các thành phần RFID/NFC:
-
-- `rfid/` — RFID EM4100 tag, reader, cloner
-- `nfc/` — NFC NTAG213 tag, reader, injector
-- `access_control/` — Access Control server (UID-based)
-- `attacks/` — các script tấn công mô phỏng
-- `defense/` — các module phòng thủ (anti-replay, secure tag)
-- `dashboard/` — Flask dashboard giám sát realtime
-- `test_lab.py` — bộ kiểm thử end-to-end
-- `final_report.py` — báo cáo tóm tắt kết quả và yêu cầu
-
----
-
-## Yêu cầu hệ thống
-
-- Python 3.8+ (đã thử nghiệm với Python 3.12)
-- pip
-- Quyền khởi tạo sockets trên localhost
-
-Khuyến nghị: sử dụng virtual environment để cô lập phụ thuộc.
-
----
-
-## Thiết lập (virtualenv)
-
-```bash
-# Tạo và kích hoạt venv (Linux/macOS)
-python3 -m venv venv
-source venv/bin/activate
-
-# (Windows PowerShell)
-# python -m venv venv
-# .\venv\Scripts\Activate.ps1
-```
-
----
-
-## Cài đặt phụ thuộc
-
-```bash
-pip install -r rfid_nfc_lab/requirements.txt
-```
-
-Nếu gặp lỗi `ModuleNotFoundError: No module named 'colorama'`, chạy thêm:
-
-```bash
-pip install colorama
-```
-
----
-
-## Chạy từng thành phần (mở nhiều terminal song song)
-
-1) RFID Tag Simulator (EM4100) — lắng nghe `127.0.0.1:6001`
-
-```bash
-python rfid/rfid_tag.py
-```
-
-2) NFC Tag Simulator (NTAG213) — lắng nghe `127.0.0.1:6011`
-
-```bash
-python nfc/nfc_tag.py
-```
-
-3) Access Control Server — lắng nghe `127.0.0.1:7001`
-
-```bash
-python access_control/ac_server.py
-```
-
-4) Dashboard (Flask) — mặc định `http://localhost:8080`
-
-```bash
-python dashboard/dashboard.py
-```
-
-5) Readers / Attacks / Defense (chạy khi cần):
-
-```bash
-python rfid/rfid_reader.py
-python nfc/nfc_reader.py
-python attacks/eavesdropper.py
-python attacks/replay_attack.py
-python attacks/relay_attack.py
-python rfid/rfid_cloner.py
-python nfc/nfc_injector.py
-python defense/secure_reader.py
-python defense/secure_tag.py
-```
-
----
-
-### Kết quả mong đợi cho từng lệnh (ví dụ chi tiết)
-
-- Khởi động `RFID Tag`:
+  2) (Bước A) Chạy RFID Tag Simulator
 
   Command:
   ```bash
   python rfid/rfid_tag.py
   ```
 
-  Expected console output (example):
+  Expected console output:
   ```text
   [TAG] RFID Tag online @ 127.0.0.1:6001
   [TAG] UID=A1B2C3D4E5 Owner=Nguyen Van A
   [TAG] Waiting for readers...
   ```
 
-- Khởi động `NFC Tag`:
+  Ý nghĩa: server thẻ đã lắng nghe cổng 6001; khi reader kết nối và gửi `{'cmd':'QUERY'}`, server sẽ trả về UID. Nếu không thấy thông báo này, không có thẻ hoạt động trên cổng 6001.
+
+  ---
+
+  3) (Bước B) Chạy NFC Tag Simulator
 
   Command:
   ```bash
   python nfc/nfc_tag.py
   ```
 
-  Expected console output (example):
+  Expected console output:
   ```text
   [NFC TAG] NTAG213 simulator @ 127.0.0.1:6011
   [NFC TAG] UID=04A1B2C3D4E5F6
-  [NFC TAG] Reader connected: ('127.0.0.1', 52344)   # when a reader connects
+  [NFC TAG] Waiting for readers...
   ```
 
-- Khởi động `Access Control`:
+  Ý nghĩa: thẻ NFC mô phỏng có NDEF trong bộ nhớ; khi nhận lệnh `READ_NDEF` sẽ trả về danh sách record. Nếu server báo lỗi bind hoặc thoát, cổng có thể bị chiếm.
+
+  ---
+
+  4) (Bước C) Chạy Access Control Server
 
   Command:
   ```bash
   python access_control/ac_server.py
   ```
 
-  Expected console output (example):
+  Expected console output:
   ```text
   [AC] Access Control Server @ 127.0.0.1:7001
   [AC] Loaded 3 cards in database
-  [AC] 2026-05-26 12:34:56 GRANTED uid=A1B2C3D4E5 owner=Nguyen Van A   # when auth occurs
   ```
 
-- Chạy `rfid_reader` (kết nối vào tag và AC):
+  Ý nghĩa: server AC sẵn sàng nhận yêu cầu `{'cmd':'AUTH','uid':'...'}`. Khi nhận uid hợp lệ sẽ in `GRANTED` và trả JSON chứa `status: GRANTED`. Nếu server không khởi động vì `Address already in use`, kill tiến trình chiếm cổng.
+
+  ---
+
+  5) (Bước D) (Tuỳ chọn) Khởi động Dashboard (Flask)
 
   Command:
+  ```bash
+  python dashboard/dashboard.py
+  ```
+
+  Expected console output (tóm tắt):
+  ```text
+   * Serving Flask app 'dashboard' ...
+   * Running on http://127.0.0.1:8080/ (Press CTRL+C to quit)
+  ```
+
+  Ý nghĩa: mở trình duyệt đến `http://localhost:8080` để xem event logs, thống kê scans và các alert.
+
+  ---
+
+  6) (Bước E) Chạy Reader đơn giản để kiểm tra luồng end-to-end
+
+  Command (RFID reader):
   ```bash
   python rfid/rfid_reader.py
   ```
 
   Expected console output (example):
   ```text
+  [READER] Connecting to RFID tag @127.0.0.1:6001
   [READER] Scanned UID=A1B2C3D4E5 -> Sent AUTH to AC
-  [AC] GRANTED uid=A1B2C3D4E5
+  [AC] GRANTED uid=A1B2C3D4E5 owner=Nguyen Van A
   ```
 
----
+  Ý nghĩa: reader đọc UID từ Tag, gửi đến AC, và AC quyết định `GRANTED`/`DENIED`. Nếu reader không kết nối, kiểm tra status của Tag và AC server.
 
-## Chạy toàn bộ phụ thuộc một lần và kiểm tra
+  ---
 
-1) Cài tất cả các phụ thuộc (một lần) trong venv:
+  7) (Bước F) Chạy script tấn công (một ví dụ: eavesdropper)
 
-```bash
-source venv/bin/activate
-python3 -m pip install -r rfid_nfc_lab/requirements.txt
-```
+  Command:
+  ```bash
+  python attacks/eavesdropper.py
+  ```
 
-Expected output: pip will download and install packages including `Flask`, `pycryptodome`, `requests`, `colorama`, `ndef`. Near the end you should see lines like:
+  Expected console output (example):
+  ```text
+  [EAVESDROP] Listening on 127.0.0.1:6001
+  [EAVESDROP] Captured UID=A1B2C3D4E5
+  ```
 
-```text
-Successfully installed Flask-2.3.0 pycryptodome-3.18.0 requests-2.32.5 colorama-0.4.6 ndef-<version>
+  Ý nghĩa: attacker có thể nghe lén giao tiếp clear-text; nếu dòng `Captured UID` xuất hiện, giao tiếp không được mã hoá.
+
+  Thực hiện thêm: replay, cloning, injector, relay — chạy tương tự và quan sát `GRANTED` hay `DENIED` trên AC.
+
+  ---
+
+  8) (Bước G) Chạy bộ kiểm thử tổng hợp (toàn bộ quy trình tự động)
+
+  Command:
+  ```bash
+  python3 rfid_nfc_lab/test_lab.py
+  ```
+
+  Expected console summary (example):
+  ```text
+  === 1. TESTING SIMULATORS ===
+  [✓] RFID EM4100: UID=A1B2C3D4E5, Type=EM4100
+  [✓] NFC NTAG213: UID=04A1B2C3..., NDEF-compatible
+  [✓] Access Control: Status=GRANTED, DB loaded
+
+  === 2. TESTING ATTACKS ===
+  [✓] Eavesdropping: Captured UID=A1B2C3D4E5
+  [✓] Replay Attack: Server vulnerable - Granted
+  [✓] Brute Force: Found 0 valid UIDs...
+  [✓] RFID Cloning: Owner info leaked
+
+  === 3. TESTING DEFENSE ===
+  [✓] Anti-Replay: Token reuse blocked
+  [✗] NDEF HMAC: Server not running (SKIP)
+  [PARTIAL] NFC Write Protection: NDEF readable, write control partial
+
+  Overall: 8/10 tests passed (80%)
+  Results saved to rfid_nfc_lab/test_results.json
+  ```
+
+  Meaning of results (tóm tắt):
+
+  - `simulators` PASS: các module mô phỏng hoạt động, lắng nghe cổng và trả đúng JSON responses.
+  - `attacks` PASS: tấn công tái hiện được lỗ hổng (ví dụ replay cho thấy AC không chống replay).
+  - `defense` PARTIAL/SKIP: defense chưa đầy đủ hoặc chưa khởi động; `Anti-Replay` PASS nghĩa là server secure chặn replay.
+
+  File `rfid_nfc_lab/test_results.json` chứa chi tiết từng test (status, details, timestamp).
+
+  ---
+
+  9) Ghi chú khắc phục lỗi nhanh
+
+  - Nếu gặp `ModuleNotFoundError: No module named 'colorama'`:
+
+  ```bash
+  source venv/bin/activate
+  pip install colorama
+  ```
+
+  - Nếu gặp `OSError: [Errno 98] Address already in use` khi chạy một server:
+
+  ```bash
+  ss -ltnp | grep -E '6001|6011|7001'
+  kill <PID>
+  ```
+
+  - Nếu test runner báo `Connection refused` cho một service, đảm bảo service đó đã được khởi chạy và lắng nghe trước khi test runner kết nối (xem thứ tự ở trên).
+
+  ---
+
+  10) Tệp kết quả và kiểm tra nhanh
+
+  - Xem file kết quả:
+
+  ```bash
+  cat rfid_nfc_lab/test_results.json | jq
+  ```
+
+  - Kiểm tra import thư viện (sau khi cài):
+
+  ```bash
+  python3 -c "import colorama, ndef; print('colorama', colorama.__version__)"
+  ```
+
+  If you want, I can:
+  - Tự chạy `python3 rfid_nfc_lab/test_lab.py` ngay bây giờ và gửi kết quả, hoặc
+  - Thêm các phần logs/chỉ dẫn debug nâng cao vào README.
+
+  Hãy chọn hành động tiếp theo bạn muốn tôi làm.
 ```
 
 2) Quick import check:
