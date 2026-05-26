@@ -202,7 +202,77 @@
 
   Ý nghĩa: attacker có thể nghe lén giao tiếp clear-text; nếu dòng `Captured UID` xuất hiện, giao tiếp không được mã hoá.
 
-  Thực hiện thêm: replay, cloning, injector, relay — chạy tương tự và quan sát `GRANTED` hay `DENIED` trên AC.
+- `attacks/brute_force.py` (Tấn công brute force UID)
+
+  Command:
+  ```bash
+  python attacks/brute_force.py
+  ```
+
+  Expected console output (example):
+  ```text
+  === RFID UID Brute Force ===
+  Range: 0x0000 -> 0x1000 (4096 IDs)
+  Sample rate: mỗi 50 ID
+
+  [+] FOUND VALID UID: A1B2C3D4E5 -> Nguyen Van A
+  [+] Total attempts: 80
+  [+] Valid UIDs found: 1
+    ✓ A1B2C3D4E5 (Nguyen Van A)
+  ```
+
+  Ý nghĩa: attacker quét hệ thống để tìm UID hợp lệ bằng brute force; nếu tìm được, có thể sử dụng chúng để truy cập.
+
+- `attacks/relay_attack.py` (Tấn công relay — kéo dài khoảng cách)
+
+  Command:
+  ```bash
+  python attacks/relay_attack.py
+  ```
+
+  Expected console output (example):
+  ```text
+  === RFID Relay Attack (Distance Extension) ===
+  [RELAY] Proxy listening on port 6101
+  [RELAY] Forwarding to 127.0.0.1:6001
+  [RELAY] ⚠ This allows distance extension attacks!
+  [RELAY] Reader connected from 127.0.0.1:...
+  ```
+
+  Ý nghĩa: relay hoạt động như proxy giữa reader và tag, cho phép kéo dài khoảng cách tấn công; attacker có thể giao tiếp với tag từ khoảng cách xa.
+
+- `defense/secure_reader.py` (Bảo vệ: Server AC chống replay)
+
+  Command:
+  ```bash
+  python defense/secure_reader.py
+  ```
+
+  Expected console output (example):
+  ```text
+  [SECURE AC] Running @ 127.0.0.1:7002 — Anti-replay ENABLED
+  [SECURE AC] GRANTED: Nguyen Van A
+  [SECURE AC] REPLAY DETECTED: A1B2C3D4E5
+  ```
+
+  Ý nghĩa: server AC bảo mật chạy trên cổng 7002 với chức năng chống replay; yêu cầu phải có timestamp hợp lệ trong time window, token đã dùng sẽ bị chặn nếu dùng lại.
+
+- `defense/secure_tag.py` (Bảo vệ: NFC tag với NDEF HMAC + write protection)
+
+  Command:
+  ```bash
+  python defense/secure_tag.py
+  ```
+
+  Expected console output (example):
+  ```text
+  [SECURE NFC] NTAG213 @ 127.0.0.1:6012
+  [SECURE NFC] ✓ Write password protected
+  [SECURE NFC] ✓ NDEF HMAC signed
+  [SECURE NFC] Tag locked, write denied
+  ```
+
+  Ý nghĩa: NFC tag bảo mật chạy trên cổng 6012 với khóa ghi và chữ ký NDEF; ghi vào tag yêu cầu password đúng, và NDEF được bảo vệ bằng HMAC-SHA256.
 
   ---
 
@@ -242,151 +312,3 @@
   - `defense` PARTIAL/SKIP: defense chưa đầy đủ hoặc chưa khởi động; `Anti-Replay` PASS nghĩa là server secure chặn replay.
 
   File `rfid_nfc_lab/test_results.json` chứa chi tiết từng test (status, details, timestamp).
-
-  ---
-
-  9) Ghi chú khắc phục lỗi nhanh
-
-  - Nếu gặp `ModuleNotFoundError: No module named 'colorama'`:
-
-  ```bash
-  source venv/bin/activate
-  pip install colorama
-  ```
-
-  - Nếu gặp `OSError: [Errno 98] Address already in use` khi chạy một server:
-
-  ```bash
-  ss -ltnp | grep -E '6001|6011|7001'
-  kill <PID>
-  ```
-
-  - Nếu test runner báo `Connection refused` cho một service, đảm bảo service đó đã được khởi chạy và lắng nghe trước khi test runner kết nối (xem thứ tự ở trên).
-
-  ---
-
-  10) Tệp kết quả và kiểm tra nhanh
-
-  - Xem file kết quả:
-
-  ```bash
-  cat rfid_nfc_lab/test_results.json | jq
-  ```
-
-  - Kiểm tra import thư viện (sau khi cài):
-
-  ```bash
-  python3 -c "import colorama, ndef; print('colorama', colorama.__version__)"
-  ```
-
-  If you want, I can:
-  - Tự chạy `python3 rfid_nfc_lab/test_lab.py` ngay bây giờ và gửi kết quả, hoặc
-  - Thêm các phần logs/chỉ dẫn debug nâng cao vào README.
-
-  Hãy chọn hành động tiếp theo bạn muốn tôi làm.
-```
-
-2) Quick import check:
-
-```bash
-python3 -c "import colorama, ndef; print('colorama', colorama.__version__)"
-```
-
-Expected output (example):
-
-```text
-colorama 0.4.6
-```
-
-
----
-
-## Chạy bộ kiểm thử toàn diện
-
-File kiểm thử: `rfid_nfc_lab/test_lab.py` — chạy từ thư mục gốc:
-
-```bash
-python3 rfid_nfc_lab/test_lab.py
-```
-
-Hành động của test runner:
-
-- Khởi động các server cần thiết như subprocess (RFID, NFC, AC)
-- Thực hiện các kết nối TCP để kiểm tra response
-- Chạy các kịch bản tấn công và kiểm tra defense
-- Lưu kết quả vào `rfid_nfc_lab/test_results.json`
-
----
-
-## Giải thích chi tiết kết quả đầu ra
-
-File log trên console + `rfid_nfc_lab/test_results.json` chứa chi tiết. Các trạng thái phổ biến:
-
-- `PASS`: test đạt yêu cầu (mô-đun phản hồi và hành vi mong đợi xảy ra).
-- `FAIL`: test không đạt (không kết nối được, thiếu trường dữ liệu, hoặc response sai).
-- `SKIP`: test bị bỏ qua (phụ trợ chưa chạy hoặc không cấu hình).
-- `PARTIAL`: chỉ đạt 1 phần mong đợi (ví dụ: NDEF vẫn đọc được nhưng write bị hạn chế).
-
-Ví dụ ý nghĩa:
-
-- `RFID EM4100: PASS, UID=A1B2C3D4E5` → thẻ mô phỏng phát UID (không xác thực).
-- `Eavesdropping: PASS` → attacker có thể bắt UID/plaintext.
-- `Replay Attack: PASS` → server chấp nhận replay (nếu không bật anti-replay).
-- `Anti-Replay: PASS` → defense hoạt động, replay bị chặn.
-
-Thống kê tóm tắt thường thấy (ví dụ tham chiếu): `8/10 tests passed (80%)`.
-
----
-
-## Ví dụ truy vấn TCP (JSON) giữa client và servers
-
-- RFID Tag: gửi `{'cmd':'QUERY'}` → nhận `{'status':'TAG_PRESENT','uid':..., 'type':..., 'frame':...}`
-- NFC Tag: gửi `{'cmd':'READ_NDEF'}` → nhận `{'records':[...records...]}`
-- Access Control: gửi `{'cmd':'AUTH','uid':'A1B2C3D4E5'}` → nhận `{'status':'GRANTED','owner':...}`
-
----
-
-## Vị trí lưu kết quả
-
-- `rfid_nfc_lab/test_results.json` — kết quả chi tiết dạng JSON của lần chạy test gần nhất.
-
----
-
-## Khắc phục sự cố thường gặp
-
-- ModuleNotFoundError: No module named 'colorama'
-
-  - Nguyên nhân: package chưa được cài trong virtualenv.
-  - Khắc phục:
-
-    ```bash
-    source venv/bin/activate
-    pip install colorama
-    # hoặc cài toàn bộ requirements
-    pip install -r rfid_nfc_lab/requirements.txt
-    ```
-
-- Address already in use / Connection refused
-
-  - Kiểm tra tiến trình đang chiếm cổng và dừng nó.
-
-    ```bash
-    ss -ltnp | grep -E '6001|6011|7001'
-    kill <PID>
-    ```
-
-- Nếu muốn chạy sạch, xóa file kết quả cũ trước khi chạy test:
-
-```bash
-rm -f rfid_nfc_lab/test_results.json
-```
-
----
-
-## Ghi chú cuối
-
-- Tôi đã dọn dẹp để chỉ giữ một README duy nhất ở gốc repository. Nếu bạn muốn, tôi có thể:
-  - Thêm `colorama` vào `rfid_nfc_lab/requirements.txt` và cài tự động; hoặc
-  - Viết thêm phần FAQ / troubleshooting chi tiết hơn.
-
-Hãy cho tôi biết muốn tôi làm bước nào tiếp theo.
